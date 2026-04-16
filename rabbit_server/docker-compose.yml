@@ -1,0 +1,23 @@
+# 用法（在仓库根目录）：
+#   docker compose -f rabbit_server/docker-compose.yml up -d --build
+#
+# 若提示容器名冲突，先执行：docker compose -f rabbit_server/docker-compose.yml down
+name: rabbit-stack
+services:
+  rabbit-api:
+    image: rabbit-stack/rabbit-api:latest
+    build:
+      context: ..
+      dockerfile: rabbit_server/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - rabbit-sqlite:/data
+    environment:
+      DATABASE_URL: sqlite:////data/rabbit.db
+      SEED_JSON_PATH: /app/seed/rabbit_seed.json
+      RUN_SEED_ON_EMPTY: "true"
+    restart: unless-stopped
+
+volumes:
+  rabbit-sqlite:
