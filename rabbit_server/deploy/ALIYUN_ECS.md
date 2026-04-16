@@ -56,7 +56,7 @@ cd /opt/rabbit/rabbit_server
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 mkdir -p data
-cp ../Rabbit_iOS/Rabbit_iOS/rabbit_seed.json data/
+cp ./seed/rabbit_seed.json data/
 export DATABASE_URL=sqlite:///./data/rabbit.db
 export SEED_JSON_PATH=./data/rabbit_seed.json
 nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &

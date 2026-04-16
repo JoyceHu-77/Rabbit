@@ -25,6 +25,7 @@ def _resolve_seed_json_path():
     here = Path(__file__).resolve()
     for c in (
         here.parent.parent / "data" / "rabbit_seed.json",
+        here.parent.parent / "seed" / "rabbit_seed.json",
         here.parents[2] / "Rabbit_iOS" / "Rabbit_iOS" / "rabbit_seed.json",
     ):
         if c.is_file():

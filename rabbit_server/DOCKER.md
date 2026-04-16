@@ -9,7 +9,7 @@
 ## 本机需要准备什么？
 
 - 已安装 **Docker Desktop**（macOS/Windows）或 Docker Engine + Compose 插件（Linux）。
-- 本仓库路径包含 `rabbit_server/` 与 `Rabbit_iOS/Rabbit_iOS/rabbit_seed.json`（构建镜像时会 `COPY` 该文件）。
+- 本仓库路径包含 `rabbit_server/`，其中 `rabbit_server/seed/rabbit_seed.json` 会在构建镜像时 `COPY` 进镜像。
 
 ## 一键启动 API（推荐）
 
@@ -57,7 +57,7 @@ docker compose -f rabbit_server/docker-compose.yml down
 docker compose -f rabbit_server/docker-compose.yml up -d --build
 ```
 
-当前 Compose 已设置 `name: rabbit-stack`，新项目下的容器名形如 `rabbit-stack-rabbit-api-1`，与旧默认名错开。
+如需固定 Compose 项目名（影响容器/网络前缀），可在命令里加 `-p rabbit-stack`。
 
 ## 仅构建镜像（不启动）
 
