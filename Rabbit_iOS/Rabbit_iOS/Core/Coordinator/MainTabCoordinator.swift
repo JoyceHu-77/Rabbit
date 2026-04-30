@@ -1,0 +1,15 @@
+//
+//  MainTabCoordinator.swift
+//  Rabbit_iOS — 根 Tab 路由状态（Coordinator 薄层，供后续深链接 / 编程切换 Tab）
+//
+
+import Observation
+
+@Observable @MainActor
+final class MainTabCoordinator {
+    var selectedTab: MainTab = .rescue
+
+    func select(_ tab: MainTab) {
+        selectedTab = tab
+    }
+}

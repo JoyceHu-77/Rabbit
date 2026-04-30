@@ -88,36 +88,3 @@ struct RescueCardView: View {
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
     }
 }
-
-struct PostImageView: View {
-    let urlString: String?
-
-    var body: some View {
-        Group {
-            if let u = resolvedURL(urlString) {
-                AsyncImage(url: u) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    case .failure: placeholder
-                    default: ProgressView()
-                    }
-                }
-            } else {
-                placeholder
-            }
-        }
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            Color(white: 0.95)
-            Text("🐰").font(.largeTitle)
-        }
-    }
-
-    private func resolvedURL(_ s: String?) -> URL? {
-        guard let s, !s.isEmpty else { return nil }
-        if s.hasPrefix("http") { return URL(string: s) }
-        return nil
-    }
-}

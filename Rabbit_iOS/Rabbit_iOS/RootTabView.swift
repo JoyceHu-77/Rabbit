@@ -1,52 +1,25 @@
 //
 //  RootTabView.swift
-//  Rabbit_iOS — 引导按钮：50×50，顶与屏幕 safeArea.top 对齐，右缘相对屏幕 -10pt（略向外）
+//  Rabbit_iOS — App 根视图：Tab + 新手引导悬浮按钮（MVVM：路由由 MainTabCoordinator 持有）
 //
 
 import SwiftUI
 
-/// 与 rabbit_web_new 底部 Tab 顺序一致：救援 → 活动 → 领养 → 捐换 → 个人
-private enum MainTab: Int, CaseIterable, Hashable {
-    case rescue, activity, adoption, donation, profile
-
-    var title: String {
-        switch self {
-        case .rescue: return "爱兔救援"
-        case .activity: return "爱兔活动"
-        case .adoption: return "爱兔领养"
-        case .donation: return "物资捐换"
-        case .profile: return "个人页"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .rescue: return "heart.fill"
-        case .activity: return "calendar"
-        case .adoption: return "person.2.fill"
-        case .donation: return "shippingbox.fill"
-        case .profile: return "person.fill"
-        }
-    }
-}
-
 /// 新手引导浮动按钮（pt，与 393 设计稿对齐）
 private enum GuideButtonLayout {
     static let side: CGFloat = 50
-    /// 按钮顶边相对「safeArea.top」的额外下移（0 = 顶边与 safeArea 顶对齐）
     static let topInsetFromSafeAreaTop: CGFloat = 0
-    /// 距屏幕右缘：-10 表示相对「右对齐 0」再向外 10pt（更贴边 / 略探出）
     static let trailingOffsetFromScreenRight: CGFloat = -10
 }
 
 struct RootTabView: View {
     @State private var appData = AppDataStore()
-    @State private var tab: MainTab = .rescue
+    @State private var tabCoordinator = MainTabCoordinator()
     @State private var showWelcome = false
     @State private var showWelcomeButton = false
 
     var body: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $tabCoordinator.selectedTab) {
             RescueTabView()
                 .tabItem { Label(MainTab.rescue.title, systemImage: MainTab.rescue.systemImage) }
                 .tag(MainTab.rescue)
@@ -101,13 +74,11 @@ struct RootTabView: View {
         }
     }
 
-    /// 右缘为 `width`，`trailingOffsetFromScreenRight = -10` 时右缘在 `width + 10`，正方形中心 X = 右缘 - side/2
     private func guideButtonCenterX(width: CGFloat) -> CGFloat {
         let trailingEdgeX = width + GuideButtonLayout.trailingOffsetFromScreenRight
         return trailingEdgeX - GuideButtonLayout.side / 2
     }
 
-    /// 顶边与 safeArea.top 对齐：`centerY = safeTop + topInset + side/2`
     private func guideButtonCenterY(in geo: GeometryProxy) -> CGFloat {
         geo.safeAreaInsets.top + GuideButtonLayout.topInsetFromSafeAreaTop + GuideButtonLayout.side / 2
     }
