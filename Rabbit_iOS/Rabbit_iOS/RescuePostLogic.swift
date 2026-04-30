@@ -25,6 +25,11 @@ struct RescueDisplayPost: Identifiable, Equatable, Hashable, Sendable {
     var healthStatus: String?
     var sterilizedStatus: String?
     var sourceRabbitId: Int32
+    /// 发帖账号昵称（用于「我的发布」筛选）
+    var publisherName: String?
+    /// `approved` 公开列表；`pending` 待审核；`rejected` 仅发帖人/管理员可见
+    var moderationStatus: String
+    var auditRejectionReason: String?
 }
 
 enum RescuePostLogic {
@@ -112,7 +117,10 @@ enum RescuePostLogic {
             wechatQR: rabbit.wechatQRCode,
             healthStatus: health,
             sterilizedStatus: steril,
-            sourceRabbitId: Int32(rabbit.id)
+            sourceRabbitId: Int32(rabbit.id),
+            publisherName: nil,
+            moderationStatus: "approved",
+            auditRejectionReason: nil
         )
     }
 
@@ -137,5 +145,22 @@ enum RescuePostLogic {
 
     static func completeRequiresWeChatQR(_ status: String) -> Bool {
         ["待救援", "救援中", "已救援"].contains(status)
+    }
+}
+
+extension RescueDisplayPost {
+    /// 列表/社区是否对当前用户展示（含待审核/驳回对发帖人本机可见）
+    func isListedForViewer(isAdmin: Bool, viewerUserName: String) -> Bool {
+        if isAdmin { return true }
+        switch moderationStatus {
+        case "approved":
+            return true
+        case "pending", "rejected":
+            let v = viewerUserName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let p = (publisherName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return !p.isEmpty && p == v
+        default:
+            return true
+        }
     }
 }

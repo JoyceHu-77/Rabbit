@@ -10,6 +10,8 @@ import Observation
 @Observable
 final class RescueListViewModel {
     var allPosts: [RescueDisplayPost] = []
+    /// 筛选后的全量（分页前）
+    var filteredAll: [RescueDisplayPost] = []
     var posts: [RescueDisplayPost] = []
     var showFilters = false
     var filterState = RescueFilterState()
@@ -17,6 +19,13 @@ final class RescueListViewModel {
     var sortLatest = true
     var searchQuery = ""
     var isLoading = true
+    var pageSize = 12
+    var loadedCount = 12
+
+    init() {
+        appliedFilters.statuses = ["待救援"]
+        filterState = appliedFilters
+    }
 
     var appliedFiltersStatusKey: String {
         let s = appliedFilters.statuses.sorted().joined(separator: ",")
@@ -27,10 +36,10 @@ final class RescueListViewModel {
     }
 
     func reloadFromStore(_ store: AppDataStore) {
-        allPosts = store.fetchRescuePosts()
+        allPosts = store.visibleRescuePosts(isAdmin: store.isAdmin, viewerUserName: store.userName)
     }
 
-    func applyFilters() {
+    func applyFilters(viewerUserName: String) {
         var filtered = allPosts
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !q.isEmpty {
@@ -57,7 +66,8 @@ final class RescueListViewModel {
             }
         }
         if appliedFilters.myPosts {
-            filtered = filtered.filter { $0.finderName == "张女士" }
+            let me = viewerUserName.trimmingCharacters(in: .whitespacesAndNewlines)
+            filtered = filtered.filter { ($0.publisherName ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == me && !me.isEmpty }
         }
 
         filtered.sort { a, b in
@@ -70,7 +80,19 @@ final class RescueListViewModel {
             if !kb { return true }
             return sortLatest ? (da > db) : (da < db)
         }
-        posts = filtered
+        filteredAll = filtered
+        loadedCount = pageSize
+        posts = Array(filtered.prefix(loadedCount))
+    }
+
+    func loadMoreIfNeeded(currentItemId: String?) {
+        guard let id = currentItemId,
+              let idx = filteredAll.firstIndex(where: { $0.id == id }),
+              idx >= filteredAll.count - 3,
+              loadedCount < filteredAll.count
+        else { return }
+        loadedCount = min(loadedCount + pageSize, filteredAll.count)
+        posts = Array(filteredAll.prefix(loadedCount))
     }
 
     func refreshWithLoadingDelay(store: AppDataStore) async {
@@ -78,7 +100,7 @@ final class RescueListViewModel {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         await store.refreshRescues()
         reloadFromStore(store)
-        applyFilters()
+        applyFilters(viewerUserName: store.userName)
         isLoading = false
     }
 

@@ -7,7 +7,7 @@ import Observation
 
 @Observable @MainActor
 final class MainTabCoordinator {
-    var selectedTab: MainTab = .rescue
+    var selectedTab: MainTab = TabOrderSettings.orderedTabs().first ?? .rescue
 
     func select(_ tab: MainTab) {
         selectedTab = tab

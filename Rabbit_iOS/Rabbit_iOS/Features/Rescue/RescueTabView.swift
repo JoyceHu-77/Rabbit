@@ -19,31 +19,14 @@ struct RescueTabView: View {
                 if viewModel.showFilters {
                     RescueFiltersView(filters: $viewModel.filterState, onApply: {
                         viewModel.appliedFilters = viewModel.filterState
-                        viewModel.applyFilters()
+                        viewModel.applyFilters(viewerUserName: store.userName)
                     }, onClose: { viewModel.showFilters = false })
                 }
 
                 filterChips
 
                 ScrollView {
-                    if viewModel.isLoading {
-                        RabbitLoadingView()
-                    } else if viewModel.posts.isEmpty {
-                        emptyState
-                    } else {
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                            ForEach(viewModel.posts) { p in
-                                Button {
-                                    selectedPost = p
-                                } label: {
-                                    RescueCardView(post: p)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
-                    }
+                    rescueScrollInner
                 }
             }
 
@@ -73,7 +56,15 @@ struct RescueTabView: View {
             Task { await viewModel.refreshWithLoadingDelay(store: store) }
         }
         .onChange(of: viewModel.searchQuery) { _, _ in
-            viewModel.applyFilters()
+            viewModel.applyFilters(viewerUserName: store.userName)
+        }
+        .onChange(of: store.userName) { _, _ in
+            viewModel.reloadFromStore(store)
+            viewModel.applyFilters(viewerUserName: store.userName)
+        }
+        .onChange(of: store.isAdmin) { _, _ in
+            viewModel.reloadFromStore(store)
+            viewModel.applyFilters(viewerUserName: store.userName)
         }
         .sheet(isPresented: $showCreate) {
             CreateRescuePostView { draft in
@@ -82,16 +73,47 @@ struct RescueTabView: View {
                 let err = await store.createRescuePost(p)
                 if err == nil {
                     viewModel.reloadFromStore(store)
-                    viewModel.applyFilters()
+                    viewModel.applyFilters(viewerUserName: store.userName)
                 }
                 return err
             }
         }
         .sheet(item: $selectedPost) { p in
-            RescueDetailView(post: p, isAdmin: store.isAdmin) {
+            RescueDetailView(post: p, isAdmin: store.isAdmin, viewerUserName: store.userName) {
                 viewModel.reloadFromStore(store)
-                viewModel.applyFilters()
+                viewModel.applyFilters(viewerUserName: store.userName)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var rescueScrollInner: some View {
+        if viewModel.isLoading {
+            RabbitLoadingView()
+        } else if viewModel.posts.isEmpty {
+            emptyState
+        } else {
+            let columnGap: CGFloat = 8
+            let columns = [
+                GridItem(.flexible(minimum: 0), spacing: columnGap),
+                GridItem(.flexible(minimum: 0), spacing: columnGap),
+            ]
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(viewModel.posts) { p in
+                    Button {
+                        selectedPost = p
+                    } label: {
+                        RescueCardView(post: p, layout: .feed)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .onAppear {
+                        viewModel.loadMoreIfNeeded(currentItemId: p.id)
+                    }
+                }
+            }
+            .padding(.horizontal, LayoutMetrics.horizontalInset)
+            .padding(.vertical, 12)
         }
     }
 
@@ -149,14 +171,14 @@ struct RescueTabView: View {
                         chip(s) {
                             viewModel.appliedFilters.statuses.remove(s)
                             viewModel.filterState = viewModel.appliedFilters
-                            viewModel.applyFilters()
+                            viewModel.applyFilters(viewerUserName: store.userName)
                         }
                     }
                     ForEach(Array(viewModel.appliedFilters.districts), id: \.self) { d in
                         chip(d) {
                             viewModel.appliedFilters.districts.remove(d)
                             viewModel.filterState = viewModel.appliedFilters
-                            viewModel.applyFilters()
+                            viewModel.applyFilters(viewerUserName: store.userName)
                         }
                     }
                     if viewModel.appliedFilters.dateFrom != nil {
@@ -164,21 +186,21 @@ struct RescueTabView: View {
                             viewModel.appliedFilters.dateFrom = nil
                             viewModel.appliedFilters.dateTo = nil
                             viewModel.filterState = viewModel.appliedFilters
-                            viewModel.applyFilters()
+                            viewModel.applyFilters(viewerUserName: store.userName)
                         }
                     }
                     if viewModel.appliedFilters.myPosts {
                         chip("我的发布") {
                             viewModel.appliedFilters.myPosts = false
                             viewModel.filterState = viewModel.appliedFilters
-                            viewModel.applyFilters()
+                            viewModel.applyFilters(viewerUserName: store.userName)
                         }
                     }
                     if n > 1 {
                         Button("清除全部") {
                             viewModel.appliedFilters = RescueFilterState()
                             viewModel.filterState = viewModel.appliedFilters
-                            viewModel.applyFilters()
+                            viewModel.applyFilters(viewerUserName: store.userName)
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)

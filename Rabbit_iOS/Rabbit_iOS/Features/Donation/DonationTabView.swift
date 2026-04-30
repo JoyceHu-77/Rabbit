@@ -11,6 +11,7 @@ struct DonationTabView: View {
     @State private var posts: [DonationDisplayPost] = []
     @State private var showCreate = false
     @State private var toast: String?
+    @State private var detailPost: DonationDisplayPost?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -19,7 +20,12 @@ struct DonationTabView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         ForEach(posts) { p in
-                            donationCard(p)
+                            Button {
+                                detailPost = p
+                            } label: {
+                                donationCard(p)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
@@ -57,6 +63,9 @@ struct DonationTabView: View {
                     .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { toast = nil } }
             }
         }
+        .sheet(item: $detailPost) { p in
+            DonationDetailSheet(post: p, onToast: { toast = $0 })
+        }
     }
 
     private func donationCard(_ p: DonationDisplayPost) -> some View {
@@ -91,20 +100,14 @@ struct DonationTabView: View {
                 Text(p.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(p.description).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 Text("联系人：\(p.contactName)").font(.caption2)
-                Text("联系方式：\(p.contactPhone)").font(.caption2)
+                Text("联系方式：\(maskedContactBrief(p.contactPhone))").font(.caption2)
                 if p.status != "已完成", p.target != "爱兔会" {
-                    Button(p.type == "捐赠" ? "领取" : "置换") {
-                        if p.target == "爱兔会" {
-                            toast = "该物资已指定捐赠给爱兔会"
-                        } else {
-                            toast = p.type == "捐赠" ? "已提交领取申请" : "已提交置换申请"
-                        }
-                    }
-                    .font(.caption.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(p.type == "捐赠" ? Color.green : Color.blue, in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(.white)
+                    Text("进入详情查看联系方式")
+                        .font(.caption2.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(p.type == "捐赠" ? Color.green.opacity(0.15) : Color.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(p.type == "捐赠" ? Color.green : Color.blue)
                 }
                 if p.target == "爱兔会" {
                     Text("已指定捐赠给爱兔会 ❤️").font(.caption2).foregroundStyle(.orange)
@@ -114,6 +117,12 @@ struct DonationTabView: View {
         }
         .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 3)
+    }
+
+    private func maskedContactBrief(_ raw: String) -> String {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard s.count > 4 else { return "****" }
+        return String(s.prefix(3)) + "****" + String(s.suffix(min(4, s.count - 3)))
     }
 
     private func headerRose(title: String, subtitle: String) -> some View {
@@ -190,6 +199,62 @@ private struct DonationSquareThumbnail: View {
             return URL(string: s)
         }
         return nil
+    }
+}
+
+private struct DonationDetailSheet: View {
+    let post: DonationDisplayPost
+    var onToast: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var revealed = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    DonationSquareThumbnail(urlString: post.image)
+                    Text(post.title).font(.title2.bold())
+                    Text(post.description).font(.body).foregroundStyle(.secondary)
+                    Label(post.date, systemImage: "calendar").font(.caption).foregroundStyle(.tertiary)
+                    Divider()
+                    if post.target == "爱兔会" {
+                        Text("该物资指定捐赠爱兔会，由工作人员对接。")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                    } else if revealed {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("联系人：\(post.contactName)").font(.headline)
+                            Text("联系方式：\(post.contactPhone)").font(.title3)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        Button {
+                            revealed = true
+                            UserInboxStore.append(
+                                title: "已查看联系方式",
+                                body: "您已查看捐换帖 \(post.id) 的联系人信息，请文明沟通。"
+                            )
+                            onToast("请通过电话或微信友好联系对方")
+                        } label: {
+                            Label("查看联系方式（领取/置换）", systemImage: "phone.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("物资详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+        }
     }
 }
 

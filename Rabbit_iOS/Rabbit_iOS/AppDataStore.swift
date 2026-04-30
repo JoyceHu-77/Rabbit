@@ -15,6 +15,9 @@ final class AppDataStore {
 
     private(set) var settings: AppSettingsEntity!
 
+    /// 改变底部 Tab 顺序后递增，用于强制 `TabView` 重建。
+    var tabBarConfigurationEpoch: UInt = 0
+
     /// 内存中的列表，由 `refreshRescues()` / `refreshDonations()` 从网络填充。
     private(set) var rescuePostsCache: [RescueDisplayPost] = []
     private(set) var donationPostsCache: [DonationDisplayPost] = []
@@ -91,6 +94,10 @@ final class AppDataStore {
         try? ctx.save()
     }
 
+    func bumpTabBarConfiguration() {
+        tabBarConfigurationEpoch += 1
+    }
+
     func shouldShowWelcomeModal() -> Bool {
         if !hasSeenWelcome { return true }
         guard let last = lastWelcomeTime else { return true }
@@ -113,8 +120,14 @@ final class AppDataStore {
         donationPostsCache = await RabbitAPIService.fetchDonations()
     }
 
+    /// 全量缓存（含待审核，仅供管理员或同步逻辑使用）。
     func fetchRescuePosts() -> [RescueDisplayPost] {
         rescuePostsCache
+    }
+
+    /// 列表与领养等场景：审核通过公开展示；发帖人可见本人待审/驳回帖。
+    func visibleRescuePosts(isAdmin: Bool, viewerUserName: String) -> [RescueDisplayPost] {
+        rescuePostsCache.filter { $0.isListedForViewer(isAdmin: isAdmin, viewerUserName: viewerUserName) }
     }
 
     func upsertRescue(_ post: RescueDisplayPost) {
@@ -129,15 +142,34 @@ final class AppDataStore {
     func createRescuePost(_ post: RescueDisplayPost) async -> String? {
         if RabbitAPIConfiguration.normalizedBaseURL() == nil {
             upsertRescue(post)
+            notifyRescueSubmitted(post)
             return nil
         }
         do {
             let saved = try await RabbitAPIService.createRescue(post)
             upsertRescue(saved)
+            notifyRescueSubmitted(saved)
             return nil
         } catch {
             return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    private func notifyRescueSubmitted(_ post: RescueDisplayPost) {
+        UserInboxStore.append(
+            title: "救援帖审核中",
+            body: "您提交的「\(post.title)」（编号 \(post.id)）已进入审核，通过后将对所有人展示。"
+        )
+        AdminNotificationsStore.append(
+            AdminNotificationRecord(
+                id: "ADM\(Int(Date().timeIntervalSince1970 * 1000))",
+                type: "rescue",
+                title: "新救援帖待审核",
+                content: "[\(post.id)] \(post.title)",
+                createdAt: Date(),
+                read: false
+            )
+        )
     }
 
     func nextRescuePostID() -> String {

@@ -8,6 +8,17 @@ import SwiftUI
 
 struct RescueCardView: View {
     let post: RescueDisplayPost
+    /// `feed`：双列等宽 + 固定比例封面，图片铺满裁切（参考小红书首页）；`grid`：正方形封面。
+    var layout: RescueCardLayout = .grid
+
+    enum RescueCardLayout {
+        case grid
+        /// 首页信息流：列宽由 `LazyVGrid` 均分，封面 3:4 固定框，内容超出裁切。
+        case feed
+    }
+
+    /// 与小红书常见笔记封面接近（竖图）
+    private static let feedCoverAspect: CGFloat = 3.0 / 4.0
 
     private var statusBackground: Color {
         switch post.status {
@@ -23,9 +34,22 @@ struct RescueCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                PostImageView(urlString: post.images.first)
-                    .aspectRatio(1, contentMode: .fill)
-                    .clipped()
+                Group {
+                    switch layout {
+                    case .grid:
+                        PostImageView(urlString: post.images.first)
+                            .aspectRatio(1, contentMode: .fill)
+                            .clipped()
+                    case .feed:
+                        GeometryReader { geo in
+                            PostImageView(urlString: post.images.first)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        }
+                        .aspectRatio(Self.feedCoverAspect, contentMode: .fit)
+                        .clipped()
+                    }
+                }
                 Text(post.status)
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 8)

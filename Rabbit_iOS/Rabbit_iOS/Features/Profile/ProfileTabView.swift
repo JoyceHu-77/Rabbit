@@ -11,6 +11,8 @@ struct ProfileTabView: View {
     @State private var showMessages = false
     @State private var showAddress = false
     @State private var showOrders = false
+    @State private var showChat = false
+    @State private var showTabSettings = false
     @State private var toast: String?
 
     var body: some View {
@@ -31,15 +33,13 @@ struct ProfileTabView: View {
             MessagesSheet(isAdmin: store.isAdmin)
         }
         .sheet(isPresented: $showAddress) {
-            NavigationStack {
-                Form {
-                    Section {
-                        Text("默认地址：上海市浦东新区××路××号").font(.subheadline)
-                    }
-                }
-                .navigationTitle("收货地址")
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { showAddress = false } } }
-            }
+            AddressEditorSheet()
+        }
+        .sheet(isPresented: $showChat) {
+            SimpleChatView(userName: store.userName)
+        }
+        .sheet(isPresented: $showTabSettings) {
+            TabBarSettingsSheet(store: store)
         }
         .overlay(alignment: .top) {
             if let t = toast {
@@ -105,9 +105,11 @@ struct ProfileTabView: View {
                 VStack(spacing: 0) {
                     profileRow("bell", "我的消息", badge: messageBadgeCount) { showMessages = true }
                     profileRow("bag", "我的订单", badge: nil) { showOrders = true }
-                    profileRow("heart", "我的发布", badge: nil) { toast = "查看我的发布" }
+                    profileRow("heart", "我的发布", badge: nil) { toast = "请在「爱兔救援」筛选「我的发布」" }
+                    profileRow("message.fill", "好友聊天", badge: nil) { showChat = true }
                     profileRow("mappin.and.ellipse", "收货地址", badge: nil) { showAddress = true }
-                    profileRow("gearshape", "设置", badge: nil) { toast = "打开设置" }
+                    profileRow("square.grid.2x2", "底部导航顺序", badge: nil) { showTabSettings = true }
+                    profileRow("gearshape", "设置", badge: nil) { toast = "系统设置入口（演示）" }
                 }
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.06), radius: 4)
@@ -137,10 +139,10 @@ struct ProfileTabView: View {
         .background(LinearGradient(colors: [Color.pink.opacity(0.12), Color.purple.opacity(0.1), Color.orange.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
-    /// 未读角标：用户消息（示意 2）+ 管理员未读通知（仅管理员模式）
+    /// 未读角标：站内信 + 管理员未读通知（仅管理员模式）
     private var messageBadgeCount: Int? {
         guard store.isLoggedIn else { return nil }
-        let userUnread = 2
+        let userUnread = UserInboxStore.unreadCount()
         let adminUnread = store.isAdmin ? AdminNotificationsStore.load().filter { !$0.read }.count : 0
         let total = userUnread + adminUnread
         return total > 0 ? total : nil

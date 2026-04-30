@@ -64,6 +64,9 @@ private struct RescueAPIItem: Decodable, Sendable {
     let healthStatus: String?
     let sterilizedStatus: String?
     let sourceRabbitId: Int?
+    let publisherName: String?
+    let moderationStatus: String?
+    let auditRejectionReason: String?
 
     nonisolated func toDisplay() -> RescueDisplayPost {
         RescueDisplayPost(
@@ -85,7 +88,10 @@ private struct RescueAPIItem: Decodable, Sendable {
             wechatQR: wechatQR,
             healthStatus: healthStatus,
             sterilizedStatus: sterilizedStatus,
-            sourceRabbitId: Int32(sourceRabbitId ?? 0)
+            sourceRabbitId: Int32(sourceRabbitId ?? 0),
+            publisherName: publisherName,
+            moderationStatus: moderationStatus ?? "approved",
+            auditRejectionReason: auditRejectionReason
         )
     }
 }
@@ -111,6 +117,9 @@ private struct RescueCreateBody: Encodable, Sendable {
     let healthStatus: String?
     let sterilizedStatus: String?
     let sourceRabbitId: Int
+    let publisherName: String?
+    let moderationStatus: String
+    let auditRejectionReason: String?
 
     nonisolated init(from post: RescueDisplayPost) {
         id = post.id
@@ -132,6 +141,9 @@ private struct RescueCreateBody: Encodable, Sendable {
         healthStatus = post.healthStatus
         sterilizedStatus = post.sterilizedStatus
         sourceRabbitId = Int(post.sourceRabbitId)
+        publisherName = post.publisherName
+        moderationStatus = post.moderationStatus
+        auditRejectionReason = post.auditRejectionReason
     }
 }
 

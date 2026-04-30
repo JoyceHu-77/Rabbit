@@ -20,28 +20,21 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $tabCoordinator.selectedTab) {
-            RescueTabView()
-                .tabItem { Label(MainTab.rescue.title, systemImage: MainTab.rescue.systemImage) }
-                .tag(MainTab.rescue)
-
-            ActivityTabView()
-                .tabItem { Label(MainTab.activity.title, systemImage: MainTab.activity.systemImage) }
-                .tag(MainTab.activity)
-
-            AdoptionTabView()
-                .tabItem { Label(MainTab.adoption.title, systemImage: MainTab.adoption.systemImage) }
-                .tag(MainTab.adoption)
-
-            DonationTabView()
-                .tabItem { Label(MainTab.donation.title, systemImage: MainTab.donation.systemImage) }
-                .tag(MainTab.donation)
-
-            ProfileTabView()
-                .tabItem { Label(MainTab.profile.title, systemImage: MainTab.profile.systemImage) }
-                .tag(MainTab.profile)
+            ForEach(TabOrderSettings.orderedTabs(), id: \.self) { tab in
+                tabRoot(for: tab)
+                    .tabItem { Label(tab.title, systemImage: tab.systemImage) }
+                    .tag(tab)
+            }
         }
+        .id(appData.tabBarConfigurationEpoch)
         .tint(Color(red: 0.86, green: 0.15, blue: 0.15))
         .environment(appData)
+        .onChange(of: appData.tabBarConfigurationEpoch) { _, _ in
+            let tabs = TabOrderSettings.orderedTabs()
+            if !tabs.contains(tabCoordinator.selectedTab) {
+                tabCoordinator.selectedTab = tabs.first ?? .rescue
+            }
+        }
         .overlay {
             GeometryReader { geo in
                 Color.clear
@@ -71,6 +64,17 @@ struct RootTabView: View {
         }
         .onAppear {
             evaluateWelcomeVisibility()
+        }
+    }
+
+    @ViewBuilder
+    private func tabRoot(for tab: MainTab) -> some View {
+        switch tab {
+        case .rescue: RescueTabView()
+        case .activity: ActivityTabView()
+        case .adoption: AdoptionTabView()
+        case .donation: DonationTabView()
+        case .profile: ProfileTabView()
         }
     }
 

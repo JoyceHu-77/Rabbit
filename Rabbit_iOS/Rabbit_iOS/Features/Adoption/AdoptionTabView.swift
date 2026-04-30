@@ -141,7 +141,8 @@ struct AdoptionTabView: View {
 
     private func refreshAdoptionData() async {
         await store.refreshRescues()
-        let all = store.fetchRescuePosts()
+        let all = store.visibleRescuePosts(isAdmin: store.isAdmin, viewerUserName: store.userName)
+            .filter { $0.moderationStatus == "approved" }
         storybookSource = all.filter { $0.status != "寄养中" }
         fosterRabbits = all.filter { $0.status == "寄养中" }
         rabbitPosts = RabbitCommunityStore.load()

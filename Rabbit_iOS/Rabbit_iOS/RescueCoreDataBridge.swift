@@ -63,7 +63,10 @@ enum RescueCoreDataBridge {
             wechatQR: entity.wechatQR,
             healthStatus: entity.healthStatus,
             sterilizedStatus: entity.sterilizedStatus,
-            sourceRabbitId: entity.sourceRabbitId
+            sourceRabbitId: entity.sourceRabbitId,
+            publisherName: nil,
+            moderationStatus: "approved",
+            auditRejectionReason: nil
         )
     }
 }

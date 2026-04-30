@@ -32,14 +32,33 @@ struct MessagesSheet: View {
 
                 if tab == .user || !isAdmin {
                     List {
-                        Section("未读") {
-                            Label("恭喜获得爱兔奖章（只取心滴）", systemImage: "rosette")
-                            Label("商品已发货：电子照片订单", systemImage: "shippingbox")
-                            Label("系统：您的领养申请已进入审核", systemImage: "bell")
-                        }
-                        Section("更早") {
-                            Text("欢迎加入爱兔会，让我们一起守护兔兔。")
-                                .foregroundStyle(.secondary)
+                        let msgs = UserInboxStore.load()
+                        if msgs.isEmpty {
+                            Section {
+                                Text("暂无站内信")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            ForEach(msgs) { m in
+                                Button {
+                                    UserInboxStore.markRead(id: m.id)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Text(m.title).font(.subheadline.weight(.semibold))
+                                            Spacer()
+                                            if !m.read {
+                                                Circle().fill(Color.red).frame(width: 8, height: 8)
+                                            }
+                                        }
+                                        Text(m.body).font(.caption).foregroundStyle(.secondary)
+                                        Text(m.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
                         }
                     }
                 } else {
@@ -90,9 +109,6 @@ struct MessagesSheet: View {
             }
             .onAppear {
                 adminList = AdminNotificationsStore.load()
-                if isAdmin {
-                    tab = .admin
-                }
             }
         }
     }
@@ -110,6 +126,7 @@ struct MessagesSheet: View {
         case "order": return "bag"
         case "cloudAdopt": return "cloud"
         case "adopt": return "heart.fill"
+        case "rescue": return "hare.fill"
         default: return "bell.badge"
         }
     }
@@ -142,6 +159,19 @@ struct AdoptionIntentSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("提交") {
+                        let n = AdminNotificationRecord(
+                            id: "ADM\(Int(Date().timeIntervalSince1970 * 1000))",
+                            type: "adopt",
+                            title: "新领养意向",
+                            content: "救援帖 \(post.id)（\(rabbitName)）收到领养申请。",
+                            createdAt: Date(),
+                            read: false
+                        )
+                        AdminNotificationsStore.append(n)
+                        UserInboxStore.append(
+                            title: "领养申请已提交",
+                            body: "您已提交对 \(rabbitName)（\(post.id)）的领养意向，请等待管理员审核。"
+                        )
                         onSubmitted()
                         dismiss()
                     }

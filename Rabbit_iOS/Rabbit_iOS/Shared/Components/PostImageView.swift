@@ -36,6 +36,8 @@ struct PostImageView: View {
     private func resolvedURL(_ s: String?) -> URL? {
         guard let s, !s.isEmpty else { return nil }
         if s.hasPrefix("http") { return URL(string: s) }
+        if s.hasPrefix("file:") { return URL(string: s) }
+        if s.hasPrefix("/") { return URL(fileURLWithPath: s) }
         return nil
     }
 }

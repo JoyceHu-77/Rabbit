@@ -160,8 +160,11 @@ struct CloudAdoptActivityContent: View {
             in: RoundedRectangle(cornerRadius: 20)
         )
         .task {
-            let all = RabbitAPIService.fallbackRescuePosts()
-            rabbits = all.filter { $0.status != "已去世" && $0.status != "已领养" }.prefix(4).map { $0 }
+            await store.refreshRescues()
+            let all = store.visibleRescuePosts(isAdmin: store.isAdmin, viewerUserName: store.userName)
+            rabbits = all.filter { $0.status != "已去世" && $0.status != "已领养" && $0.moderationStatus == "approved" }
+                .prefix(4)
+                .map { $0 }
         }
         .sheet(isPresented: $showSheet) {
             NavigationStack {
