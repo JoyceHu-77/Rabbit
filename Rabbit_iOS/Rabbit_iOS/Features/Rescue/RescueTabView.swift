@@ -79,7 +79,7 @@ struct RescueTabView: View {
             }
         }
         .sheet(item: $selectedPost) { p in
-            RescueDetailView(post: p, isAdmin: store.isAdmin, viewerUserName: store.userName) {
+            RescueDetailView(post: p, viewerUserName: store.userName) {
                 viewModel.reloadFromStore(store)
                 viewModel.applyFilters(viewerUserName: store.userName)
             }

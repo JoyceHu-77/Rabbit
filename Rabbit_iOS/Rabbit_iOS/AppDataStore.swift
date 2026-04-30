@@ -22,9 +22,12 @@ final class AppDataStore {
     private(set) var rescuePostsCache: [RescueDisplayPost] = []
     private(set) var donationPostsCache: [DonationDisplayPost] = []
 
-    var isAdmin: Bool {
-        get { settings.isAdmin }
-        set { settings.isAdmin = newValue; save() }
+    /// 必须使用存储属性，`@Observable` 才能感应管理员开关；底层同步 `AppSettingsEntity.isAdmin`。
+    var isAdmin = false {
+        didSet {
+            settings.isAdmin = isAdmin
+            save()
+        }
     }
 
     var isLoggedIn: Bool {
@@ -86,6 +89,8 @@ final class AppDataStore {
             settings = s
             try? ctx.save()
         }
+        // 与 Core Data 对齐；在 init 中赋值不触发 `didSet`。
+        isAdmin = settings.isAdmin
     }
 
     func save() {

@@ -41,10 +41,10 @@ struct ActivityTabView: View {
                     }
                     .padding(.bottom, 20)
                 case 1:
-                    OfflineEventsContent(isAdmin: store.isAdmin)
+                    OfflineEventsContent()
                         .padding(.vertical, 12)
                 default:
-                    CharityShopContent(isAdmin: store.isAdmin)
+                    CharityShopContent()
                         .padding(.vertical, 12)
                 }
             }

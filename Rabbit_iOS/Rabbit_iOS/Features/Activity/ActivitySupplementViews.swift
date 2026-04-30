@@ -306,24 +306,18 @@ private let offlineSeedUpcoming: [OfflineEventDisplay] = [
 ]
 
 struct OfflineEventsContent: View {
-    var isAdmin: Bool
-    @State private var past: [OfflineEventDisplay]
-    @State private var upcoming: [OfflineEventDisplay]
+    @Environment(AppDataStore.self) private var store
+    @State private var past: [OfflineEventDisplay] = offlineSeedPast
+    @State private var upcoming: [OfflineEventDisplay] = offlineSeedUpcoming
     @State private var selected: OfflineEventDisplay?
     @State private var showCreateEvent = false
-
-    init(isAdmin: Bool) {
-        self.isAdmin = isAdmin
-        _past = State(initialValue: offlineSeedPast)
-        _upcoming = State(initialValue: offlineSeedUpcoming)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack {
                 Text("往期活动").font(.title3.bold())
                 Spacer()
-                if isAdmin {
+                if store.isAdmin {
                     Button {
                         showCreateEvent = true
                     } label: {
@@ -418,7 +412,6 @@ struct CharityShopProduct: Identifiable {
 
 struct CharityShopContent: View {
     @Environment(AppDataStore.self) private var store
-    var isAdmin: Bool
     @State private var products: [CharityShopProduct] = []
     @State private var toast: String?
     @State private var showQRHint = false
@@ -431,7 +424,7 @@ struct CharityShopContent: View {
                     Text("收益用于兔兔粮草、医疗与生活物资").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if isAdmin {
+                if store.isAdmin {
                     Button {
                         showQRHint = true
                     } label: {

@@ -10,7 +10,6 @@ struct RescueDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State var post: RescueDisplayPost
-    let isAdmin: Bool
     let viewerUserName: String
     var onSave: () -> Void
 
@@ -144,7 +143,7 @@ struct RescueDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
 
-                    if isAdmin {
+                    if store.isAdmin {
                         moderationSection
                         adminSection
                     }
@@ -157,14 +156,14 @@ struct RescueDetailView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
-                if isAdmin {
+                if store.isAdmin {
                     ToolbarItem(placement: .primaryAction) {
                         Button("编辑") { showEdit = true }
                     }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if !isAdmin, post.status == "待救援", post.moderationStatus == "approved" {
+                if !store.isAdmin, post.status == "待救援", post.moderationStatus == "approved" {
                     Button {
                         showRescueApply = true
                     } label: {
@@ -315,13 +314,13 @@ struct RescueDetailView: View {
     }
 
     private func displayFinderName(_ raw: String) -> String {
-        if isAdmin || post.finderIsPublic { return raw }
+        if store.isAdmin || post.finderIsPublic { return raw }
         if raw.count <= 1 { return "*" }
         return String(raw.prefix(1)) + String(repeating: "*", count: max(1, raw.count - 1))
     }
 
     private func displayFinderContact(_ raw: String) -> String {
-        if isAdmin || post.finderIsPublic { return raw }
+        if store.isAdmin || post.finderIsPublic { return raw }
         return String(repeating: "*", count: min(11, max(4, raw.count)))
     }
 

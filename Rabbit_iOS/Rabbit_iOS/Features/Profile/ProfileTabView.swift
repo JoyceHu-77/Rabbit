@@ -30,7 +30,7 @@ struct ProfileTabView: View {
             }
         }
         .sheet(isPresented: $showMessages) {
-            MessagesSheet(isAdmin: store.isAdmin)
+            MessagesSheet()
         }
         .sheet(isPresented: $showAddress) {
             AddressEditorSheet()

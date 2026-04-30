@@ -7,8 +7,8 @@ import SwiftUI
 
 
 struct MessagesSheet: View {
+    @Environment(AppDataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    let isAdmin: Bool
 
     private enum MsgTab: Hashable {
         case user, admin
@@ -20,7 +20,7 @@ struct MessagesSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isAdmin {
+                if store.isAdmin {
                     Picker("", selection: $tab) {
                         Text("用户消息").tag(MsgTab.user)
                         Text("管理通知").tag(MsgTab.admin)
@@ -30,7 +30,7 @@ struct MessagesSheet: View {
                     .padding(.vertical, 10)
                 }
 
-                if tab == .user || !isAdmin {
+                if tab == .user || !store.isAdmin {
                     List {
                         let msgs = UserInboxStore.load()
                         if msgs.isEmpty {
@@ -110,11 +110,14 @@ struct MessagesSheet: View {
             .onAppear {
                 adminList = AdminNotificationsStore.load()
             }
+            .onChange(of: store.isAdmin) { _, isAdmin in
+                if !isAdmin { tab = .user }
+            }
         }
     }
 
     private var titleText: String {
-        if !isAdmin || tab == .user {
+        if !store.isAdmin || tab == .user {
             return "我的消息"
         }
         return "管理通知"
