@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22758" systemVersion="23F79" minimumToolsVersion="Automatic" sourceType="Swift" usedWithCloudKit="NO" userDefinedModelVersionIdentifier="">
+    <entity name="AppSettingsEntity" representedClassName="AppSettingsEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="badges" optional="YES" attributeType="Integer 32" defaultValueString="3" usesScalarValueType="YES"/>
+        <attribute name="cloudCoins" optional="YES" attributeType="Integer 32" defaultValueString="15" usesScalarValueType="YES"/>
+        <attribute name="didSeedDonations" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="didSeedRescues" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="hasSeenWelcome" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isAdmin" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isLoggedIn" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="lastWelcomeTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="settingsID" optional="YES" attributeType="String"/>
+        <attribute name="userAvatarURL" optional="YES" attributeType="String"/>
+        <attribute name="userBio" optional="YES" attributeType="String"/>
+        <attribute name="userName" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="DonationPostEntity" representedClassName="DonationPostEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="contactName" optional="YES" attributeType="String"/>
+        <attribute name="contactPhone" optional="YES" attributeType="String"/>
+        <attribute name="dateString" optional="YES" attributeType="String"/>
+        <attribute name="detailText" optional="YES" attributeType="String"/>
+        <attribute name="donationTarget" optional="YES" attributeType="String"/>
+        <attribute name="donationType" optional="YES" attributeType="String"/>
+        <attribute name="imageURL" optional="YES" attributeType="String"/>
+        <attribute name="postID" optional="YES" attributeType="String"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="RescuePostEntity" representedClassName="RescuePostEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="city" optional="YES" attributeType="String"/>
+        <attribute name="detailText" optional="YES" attributeType="String"/>
+        <attribute name="district" optional="YES" attributeType="String"/>
+        <attribute name="finderContact" optional="YES" attributeType="String"/>
+        <attribute name="finderIsPublic" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="finderName" optional="YES" attributeType="String"/>
+        <attribute name="healthStatus" optional="YES" attributeType="String"/>
+        <attribute name="imagesJSON" optional="YES" attributeType="String"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="organizerContact" optional="YES" attributeType="String"/>
+        <attribute name="organizerIsPublic" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="organizerName" optional="YES" attributeType="String"/>
+        <attribute name="postID" optional="YES" attributeType="String"/>
+        <attribute name="registrationDate" optional="YES" attributeType="String"/>
+        <attribute name="sourceRabbitId" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="sterilizedStatus" optional="YES" attributeType="String"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="wechatQR" optional="YES" attributeType="String"/>
+    </entity>
+</model>
