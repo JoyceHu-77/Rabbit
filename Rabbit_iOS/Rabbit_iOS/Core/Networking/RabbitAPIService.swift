@@ -3,10 +3,12 @@
 //  Rabbit_iOS — 使用 Alamofire 拉取列表数据；失败时使用 Bundle 种子与本地 mock。
 //
 //  约定（与后端对齐）：
-//  - GET  {base}/v1/rescues   → JSON 数组，元素与 RescueAPIItem 一致（支持 snake_case）。
-//  - GET  {base}/v1/donations → JSON 数组，元素与 DonationAPIItem 一致。
+//  - GET  {base}/v1/rescues   → 纯 JSON 数组，或 `{ data|items|rescues|results, meta? }`；元素与 RescueAPIItem 一致（支持 snake_case）。
+//  - GET  {base}/v1/donations → 同上，元素与 DonationAPIItem 一致。
 //  - POST {base}/v1/rescues   → 请求体 RescueCreateBody（JSON）；成功 200/201，响应体为单条对象（同 GET 元素）。
+//  - PATCH {base}/v1/rescues/{id} → 请求体同 RescueCreateBody；响应单条对象。
 //  - POST {base}/v1/donations → 请求体 DonationCreateBody（JSON）；成功 200/201，响应体为单条 DonationAPIItem。
+//  - 可选：Authorization: Bearer <token>（见 APIAuthHeaders）。
 //
 
 import Alamofire
@@ -44,7 +46,7 @@ enum RabbitAPIConfiguration {
     }
 }
 
-private struct RescueAPIItem: Decodable, Sendable {
+nonisolated private struct RescueAPIItem: Decodable, Sendable {
     let id: String
     let title: String
     let description: String
@@ -97,7 +99,7 @@ private struct RescueAPIItem: Decodable, Sendable {
 }
 
 /// POST /v1/rescues 的请求体（编码为 JSON；`keyEncodingStrategy = convertToSnakeCase`）。
-private struct RescueCreateBody: Encodable, Sendable {
+nonisolated private struct RescueCreateBody: Encodable, Sendable {
     let id: String
     let title: String
     let description: String
@@ -148,7 +150,7 @@ private struct RescueCreateBody: Encodable, Sendable {
 }
 
 /// POST /v1/donations 的请求体（服务端可返回 id、status、date）。
-private struct DonationCreateBody: Encodable, Sendable {
+nonisolated private struct DonationCreateBody: Encodable, Sendable {
     let title: String
     let description: String
     let image: String
@@ -168,7 +170,7 @@ private struct DonationCreateBody: Encodable, Sendable {
     }
 }
 
-private struct DonationAPIItem: Decodable, Sendable {
+nonisolated private struct DonationAPIItem: Decodable, Sendable {
     let id: String
     let title: String
     let description: String
@@ -196,7 +198,7 @@ private struct DonationAPIItem: Decodable, Sendable {
     }
 }
 
-enum RabbitAPIService {
+nonisolated enum RabbitAPIService {
     private nonisolated static func makeJSONDecoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
@@ -209,45 +211,100 @@ enum RabbitAPIService {
         return e
     }
 
-    /// 从接口获取救援列表；网络或解析失败时返回 `rabbit_seed.json` 转换结果。
-    nonisolated static func fetchRescues() async -> [RescueDisplayPost] {
-        guard let base = RabbitAPIConfiguration.normalizedBaseURL(),
-              let url = URL(string: "\(base)/v1/rescues")
-        else {
-            return fallbackRescuePosts()
+    private nonisolated struct PaginationMetaDecoder: Decodable, Sendable {
+        let total: Int?
+        let page: Int?
+        let perPage: Int?
+        let hasMore: Bool?
+    }
+
+    private nonisolated static func decodeRescueList(_ data: Data) throws -> RescuesFetchResult {
+        let dec = makeJSONDecoder()
+        if let arr = try? dec.decode([RescueAPIItem].self, from: data) {
+            return RescuesFetchResult(posts: arr.map { $0.toDisplay() }, meta: nil)
+        }
+        struct Envelope: Decodable {
+            let data: [RescueAPIItem]?
+            let items: [RescueAPIItem]?
+            let rescues: [RescueAPIItem]?
+            let results: [RescueAPIItem]?
+            let meta: PaginationMetaDecoder?
+        }
+        let env = try dec.decode(Envelope.self, from: data)
+        let raw = env.data ?? env.items ?? env.rescues ?? env.results ?? []
+        let meta = env.meta.map {
+            PaginationMeta(total: $0.total, page: $0.page, perPage: $0.perPage, hasMore: $0.hasMore)
+        }
+        return RescuesFetchResult(posts: raw.map { $0.toDisplay() }, meta: meta)
+    }
+
+    private nonisolated static func decodeDonationList(_ data: Data) throws -> DonationsFetchResult {
+        let dec = makeJSONDecoder()
+        if let arr = try? dec.decode([DonationAPIItem].self, from: data) {
+            return DonationsFetchResult(posts: arr.map { $0.toDisplay() }, meta: nil)
+        }
+        struct Envelope: Decodable {
+            let data: [DonationAPIItem]?
+            let items: [DonationAPIItem]?
+            let donations: [DonationAPIItem]?
+            let results: [DonationAPIItem]?
+            let meta: PaginationMetaDecoder?
+        }
+        let env = try dec.decode(Envelope.self, from: data)
+        let raw = env.data ?? env.items ?? env.donations ?? env.results ?? []
+        let meta = env.meta.map {
+            PaginationMeta(total: $0.total, page: $0.page, perPage: $0.perPage, hasMore: $0.hasMore)
+        }
+        return DonationsFetchResult(posts: raw.map { $0.toDisplay() }, meta: meta)
+    }
+
+    /// 从接口获取救援列表；`query` 为 nil 时与旧版无参 GET 一致；失败时回退种子数据。
+    nonisolated static func fetchRescues(query: RescueListQuery? = nil) async -> RescuesFetchResult {
+        guard let base = RabbitAPIConfiguration.normalizedBaseURL() else {
+            return RescuesFetchResult(posts: fallbackRescuePosts(), meta: nil)
+        }
+        var components = URLComponents(string: "\(base)/v1/rescues")
+        let q = query?.queryItems() ?? []
+        if !q.isEmpty { components?.queryItems = q }
+        guard let url = components?.url else {
+            return RescuesFetchResult(posts: fallbackRescuePosts(), meta: nil)
         }
         do {
             var req = URLRequest(url: url)
             req.timeoutInterval = 12
+            APIAuthHeaders.apply(to: &req)
             let data = try await AF.request(req)
                 .validate(statusCode: 200 ..< 300)
                 .serializingData()
                 .value
-            let items = try makeJSONDecoder().decode([RescueAPIItem].self, from: data)
-            return items.map { $0.toDisplay() }
+            return try decodeRescueList(data)
         } catch {
-            return fallbackRescuePosts()
+            return RescuesFetchResult(posts: fallbackRescuePosts(), meta: nil)
         }
     }
 
-    /// 从接口获取捐换列表；失败时使用内置 mock（与原 Core Data 种子一致）。
-    nonisolated static func fetchDonations() async -> [DonationDisplayPost] {
-        guard let base = RabbitAPIConfiguration.normalizedBaseURL(),
-              let url = URL(string: "\(base)/v1/donations")
-        else {
-            return fallbackDonationPosts()
+    /// 从接口获取捐换列表；失败时使用内置 mock。
+    nonisolated static func fetchDonations(query: DonationListQuery? = nil) async -> DonationsFetchResult {
+        guard let base = RabbitAPIConfiguration.normalizedBaseURL() else {
+            return DonationsFetchResult(posts: fallbackDonationPosts(), meta: nil)
+        }
+        var components = URLComponents(string: "\(base)/v1/donations")
+        let q = query?.queryItems() ?? []
+        if !q.isEmpty { components?.queryItems = q }
+        guard let url = components?.url else {
+            return DonationsFetchResult(posts: fallbackDonationPosts(), meta: nil)
         }
         do {
             var req = URLRequest(url: url)
             req.timeoutInterval = 12
+            APIAuthHeaders.apply(to: &req)
             let data = try await AF.request(req)
                 .validate(statusCode: 200 ..< 300)
                 .serializingData()
                 .value
-            let items = try makeJSONDecoder().decode([DonationAPIItem].self, from: data)
-            return items.map { $0.toDisplay() }
+            return try decodeDonationList(data)
         } catch {
-            return fallbackDonationPosts()
+            return DonationsFetchResult(posts: fallbackDonationPosts(), meta: nil)
         }
     }
 
@@ -278,6 +335,7 @@ enum RabbitAPIService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 30
+        APIAuthHeaders.apply(to: &req)
         let body = RescueCreateBody(from: post)
         req.httpBody = try makeJSONEncoder().encode(body)
 
@@ -294,6 +352,34 @@ enum RabbitAPIService {
         }
     }
 
+    /// 更新救援帖 `PATCH /v1/rescues/{id}`；需已配置 `RABBIT_API_BASE_URL`。
+    nonisolated static func updateRescue(_ post: RescueDisplayPost) async throws -> RescueDisplayPost {
+        guard let base = RabbitAPIConfiguration.normalizedBaseURL() else {
+            throw RabbitAPIError.apiBaseNotConfigured
+        }
+        let idPath = post.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? post.id
+        guard let url = URL(string: "\(base)/v1/rescues/\(idPath)") else {
+            throw RabbitAPIError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 30
+        APIAuthHeaders.apply(to: &req)
+        req.httpBody = try makeJSONEncoder().encode(RescueCreateBody(from: post))
+        let data = try await AF.request(req)
+            .validate(statusCode: 200 ..< 300)
+            .serializingData()
+            .value
+        do {
+            let item = try makeJSONDecoder().decode(RescueAPIItem.self, from: data)
+            return item.toDisplay()
+        } catch {
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            throw RabbitAPIError.serverMessage("无法解析更新救援的响应：\(snippet)")
+        }
+    }
+
     /// 创建捐换帖；需已配置 `RABBIT_API_BASE_URL`。
     nonisolated static func createDonation(_ draft: DonationDraft) async throws -> DonationDisplayPost {
         guard let base = RabbitAPIConfiguration.normalizedBaseURL(),
@@ -304,6 +390,7 @@ enum RabbitAPIService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 30
+        APIAuthHeaders.apply(to: &req)
         let body = DonationCreateBody(from: draft)
         req.httpBody = try makeJSONEncoder().encode(body)
 

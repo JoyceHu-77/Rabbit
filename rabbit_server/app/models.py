@@ -30,6 +30,9 @@ class RescuePost(Base):
     health_status: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     sterilized_status: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     source_rabbit_id: Mapped[int] = mapped_column(Integer, default=0)
+    publisher_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    moderation_status: Mapped[str] = mapped_column(String(32), default="approved")
+    audit_rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 class DonationPost(Base):

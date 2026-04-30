@@ -392,6 +392,20 @@ struct RescueDetailView: View {
     private func persist() {
         store.upsertRescue(post)
         onSave()
+        guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        Task {
+            do {
+                let updated = try await RabbitAPIService.updateRescue(post)
+                await MainActor.run {
+                    post = updated
+                    store.upsertRescue(updated)
+                }
+            } catch {
+                await MainActor.run {
+                    toast = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                }
+            }
+        }
     }
 }
 

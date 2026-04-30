@@ -22,6 +22,10 @@ final class AppDataStore {
     private(set) var rescuePostsCache: [RescueDisplayPost] = []
     private(set) var donationPostsCache: [DonationDisplayPost] = []
 
+    /// 最近一次列表请求的 `meta`（若接口未返回则为 nil；供后续分页 UI 使用）。
+    private(set) var lastRescueListMeta: PaginationMeta?
+    private(set) var lastDonationListMeta: PaginationMeta?
+
     /// 必须使用存储属性，`@Observable` 才能感应管理员开关；底层同步 `AppSettingsEntity.isAdmin`。
     var isAdmin = false {
         didSet {
@@ -115,14 +119,18 @@ final class AppDataStore {
         lastWelcomeTime = Date()
     }
 
-    /// 从接口拉取救援列表并更新内存缓存。
-    func refreshRescues() async {
-        rescuePostsCache = await RabbitAPIService.fetchRescues()
+    /// 从接口拉取救援列表并更新内存缓存；`query` 为 nil 时与无参旧版行为一致。
+    func refreshRescues(query: RescueListQuery? = nil) async {
+        let r = await RabbitAPIService.fetchRescues(query: query)
+        rescuePostsCache = r.posts
+        lastRescueListMeta = r.meta
     }
 
     /// 从接口拉取捐换列表并更新内存缓存。
-    func refreshDonations() async {
-        donationPostsCache = await RabbitAPIService.fetchDonations()
+    func refreshDonations(query: DonationListQuery? = nil) async {
+        let r = await RabbitAPIService.fetchDonations(query: query)
+        donationPostsCache = r.posts
+        lastDonationListMeta = r.meta
     }
 
     /// 全量缓存（含待审核，仅供管理员或同步逻辑使用）。

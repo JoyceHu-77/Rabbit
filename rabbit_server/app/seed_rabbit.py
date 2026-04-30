@@ -70,6 +70,9 @@ def rabbit_dict_to_rescue_row(r: dict[str, Any]) -> dict[str, Any]:
         "health_status": health,
         "sterilized_status": steril,
         "source_rabbit_id": rid,
+        "publisher_name": None,
+        "moderation_status": "approved",
+        "audit_rejection_reason": None,
     }
 
 

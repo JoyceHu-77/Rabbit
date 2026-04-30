@@ -30,6 +30,9 @@ class RescueOut(BaseModel):
     health_status: Optional[str] = None
     sterilized_status: Optional[str] = None
     source_rabbit_id: Optional[int] = 0
+    publisher_name: Optional[str] = None
+    moderation_status: Optional[str] = "approved"
+    audit_rejection_reason: Optional[str] = None
 
     @classmethod
     def from_orm(cls, row: RescuePost) -> "RescueOut":
@@ -57,6 +60,9 @@ class RescueOut(BaseModel):
             health_status=row.health_status,
             sterilized_status=row.sterilized_status,
             source_rabbit_id=row.source_rabbit_id,
+            publisher_name=row.publisher_name,
+            moderation_status=row.moderation_status or "approved",
+            audit_rejection_reason=row.audit_rejection_reason,
         )
 
 
@@ -82,6 +88,9 @@ class RescueCreate(BaseModel):
     health_status: Optional[str] = None
     sterilized_status: Optional[str] = None
     source_rabbit_id: int = 0
+    publisher_name: Optional[str] = None
+    moderation_status: str = "pending"
+    audit_rejection_reason: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -100,6 +109,9 @@ class RescueCreate(BaseModel):
             "healthStatus": "health_status",
             "sterilizedStatus": "sterilized_status",
             "sourceRabbitId": "source_rabbit_id",
+            "publisherName": "publisher_name",
+            "moderationStatus": "moderation_status",
+            "auditRejectionReason": "audit_rejection_reason",
         }
         for camel, snake in key_map.items():
             if camel in out and snake not in out:
