@@ -116,3 +116,54 @@ class OfflineEvent(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     is_past: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UserProfile(Base):
+    """个人页 — 按 Bearer（viewer_key）区分用户。"""
+
+    __tablename__ = "user_profiles"
+
+    viewer_key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    user_name: Mapped[str] = mapped_column(String(128), default="爱心用户")
+    user_bio: Mapped[str] = mapped_column(String(512), default="")
+    badges: Mapped[int] = mapped_column(Integer, default=0)
+    cloud_coins: Mapped[int] = mapped_column(Integer, default=0)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_logged_in: Mapped[bool] = mapped_column(Boolean, default=True)
+    shipping_address: Mapped[str] = mapped_column(String(512), default="")
+
+
+class UserInboxMessage(Base):
+    __tablename__ = "user_inbox_messages"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    viewer_key: Mapped[str] = mapped_column(String(256), index=True)
+    title: Mapped[str] = mapped_column(String(256), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AdminNotification(Base):
+    """管理员待办通知（全局队列）。"""
+
+    __tablename__ = "admin_notifications"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    type: Mapped[str] = mapped_column(String(32), default="")
+    title: Mapped[str] = mapped_column(String(256), default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UserOrder(Base):
+    __tablename__ = "user_orders"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    viewer_key: Mapped[str] = mapped_column(String(256), index=True)
+    title: Mapped[str] = mapped_column(String(256), default="")
+    subtitle: Mapped[str] = mapped_column(String(256), default="")
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    cloud_coins_reward: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

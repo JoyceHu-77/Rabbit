@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app import crud, crud_activity, crud_adoption
+from app import crud, crud_activity, crud_adoption, crud_profile
 from app.config import settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.db_migrate import apply_sqlite_migrations
@@ -27,6 +27,15 @@ from app.schemas_activity import (
     OfflineEventCreate,
     OfflineEventOut,
     OfflineEventPatch,
+)
+from app.schemas_profile import (
+    AdminNotificationOut,
+    InboxMessageOut,
+    OrderOut,
+    OrderPayOut,
+    ProfileOut,
+    ProfilePatch,
+    WalletAdjust,
 )
 from app.seed_activity import seed_default_banners, seed_default_offline_events
 from app.seed_rabbit import seed_default_donations, seed_rescues_from_json
@@ -163,6 +172,7 @@ def get_charity_products(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
 def post_cloud_adopt_confirm(
     body: CloudAdoptConfirm,
     db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
 ) -> Dict[str, Any]:
     row = crud_activity.validate_rescue_for_cloud(db, body.rescue_id)
     if row is None:
@@ -171,10 +181,31 @@ def post_cloud_adopt_confirm(
             detail="rescue_not_found_or_not_eligible",
         )
     coins = max(1, body.amount_yuan // 10)
+    vk = _viewer_key(authorization)
+    profile_row = crud_profile.adjust_wallet(
+        db, vk, badges_delta=1, cloud_coins_delta=coins
+    )
+    rabbit_name = (row.title or "").split(" - ", 1)[0].strip() or body.rescue_id
+    if vk != "anonymous":
+        crud_profile.create_inbox_message(
+            db,
+            vk,
+            title="云养成功",
+            body=f"您已为 {rabbit_name} 完成云养（¥{body.amount_yuan}），{coins} 云养币已到账。",
+        )
+    crud_profile.create_admin_notification(
+        db,
+        type="cloudAdopt",
+        title="云养支付待核对",
+        content=f"用户 {vk} 云养 {body.rescue_id}（{rabbit_name}）¥{body.amount_yuan}，已发放 {coins} 云养币。",
+    )
+    prof = ProfileOut.from_row(profile_row)
     out = CloudAdoptConfirmOut(
         rescue_id=body.rescue_id,
         amount_yuan=body.amount_yuan,
         cloud_coins_granted=coins,
+        badges_granted=1,
+        profile=prof.model_dump(mode="json"),
     )
     return out.model_dump(mode="json")
 
@@ -186,9 +217,11 @@ def post_cloud_adopt_confirm(
 def create_adoption_intent(
     body: AdoptionIntentCreate,
     db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
 ) -> Dict[str, Any]:
+    vk = _viewer_key(authorization)
     try:
-        row = crud_adoption.create_adoption_intent(db, body)
+        row = crud_adoption.create_adoption_intent(db, body, viewer_key=vk)
     except ValueError as e:
         if str(e) == "rescue_not_found":
             raise HTTPException(status_code=404, detail="rescue_not_found")
@@ -387,3 +420,112 @@ def get_donations(
 def post_donation(body: DonationCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
     row = crud.create_donation(db, body)
     return DonationOut.from_orm(row).model_dump(mode="json")
+
+
+# --- 个人页：资料、站内信、管理通知、订单 ---
+
+
+@app.get("/v1/profile/me", tags=["profile"])
+def get_profile_me(
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    vk = _viewer_key(authorization)
+    row = crud_profile.get_or_create_profile(db, vk)
+    return ProfileOut.from_row(row).model_dump(mode="json")
+
+
+@app.patch("/v1/profile/me", tags=["profile"])
+def patch_profile_me(
+    body: ProfilePatch,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    vk = _viewer_key(authorization)
+    row = crud_profile.patch_profile(db, vk, body)
+    return ProfileOut.from_row(row).model_dump(mode="json")
+
+
+@app.post("/v1/profile/wallet/adjust", tags=["profile"])
+def post_profile_wallet_adjust(
+    body: WalletAdjust,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    vk = _viewer_key(authorization)
+    row = crud_profile.adjust_wallet(
+        db,
+        vk,
+        badges_delta=body.badges_delta,
+        cloud_coins_delta=body.cloud_coins_delta,
+    )
+    return ProfileOut.from_row(row).model_dump(mode="json")
+
+
+@app.get("/v1/profile/inbox", tags=["profile"])
+def get_profile_inbox(
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> List[Dict[str, Any]]:
+    vk = _viewer_key(authorization)
+    rows = crud_profile.list_inbox_messages(db, vk)
+    return [InboxMessageOut.from_row(r).model_dump(mode="json") for r in rows]
+
+
+@app.post("/v1/profile/inbox/{message_id}/read", tags=["profile"])
+def post_profile_inbox_read(
+    message_id: str,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, str]:
+    vk = _viewer_key(authorization)
+    if not crud_profile.mark_inbox_read(db, vk, message_id):
+        raise HTTPException(status_code=404, detail="message_not_found")
+    return {"status": "ok"}
+
+
+@app.get("/v1/profile/admin-notifications", tags=["profile"])
+def get_profile_admin_notifications(
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    rows = crud_profile.list_admin_notifications(db)
+    return [AdminNotificationOut.from_row(r).model_dump(mode="json") for r in rows]
+
+
+@app.post("/v1/profile/admin-notifications/{notification_id}/read", tags=["profile"])
+def post_profile_admin_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, str]:
+    if not crud_profile.mark_admin_read(db, notification_id):
+        raise HTTPException(status_code=404, detail="notification_not_found")
+    return {"status": "ok"}
+
+
+@app.get("/v1/profile/orders", tags=["profile"])
+def get_profile_orders(
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> List[Dict[str, Any]]:
+    vk = _viewer_key(authorization)
+    rows = crud_profile.list_orders(db, vk)
+    return [OrderOut.from_row(r).model_dump(mode="json") for r in rows]
+
+
+@app.post("/v1/profile/orders/{order_id}/pay", tags=["profile"])
+def post_profile_order_pay(
+    order_id: str,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    vk = _viewer_key(authorization)
+    pair = crud_profile.pay_order(db, vk, order_id)
+    if pair is None:
+        raise HTTPException(status_code=404, detail="order_not_found")
+    order_row, profile_row = pair
+    out = OrderPayOut(
+        order_id=order_row.id,
+        cloud_coins_granted=order_row.cloud_coins_reward,
+        profile=ProfileOut.from_row(profile_row),
+    )
+    return out.model_dump(mode="json")

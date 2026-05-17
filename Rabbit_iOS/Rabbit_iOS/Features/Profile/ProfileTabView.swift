@@ -47,6 +47,9 @@ struct ProfileTabView: View {
                     .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { toast = nil } }
             }
         }
+        .task {
+            await store.syncProfileFromServer()
+        }
     }
 
     private var loggedOutCard: some View {
@@ -59,6 +62,10 @@ struct ProfileTabView: View {
             Button("立即登录") {
                 store.isLoggedIn = true
                 toast = "登录成功"
+                Task {
+                    await store.pushProfileToServer()
+                    await store.syncProfileFromServer()
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(.pink)
@@ -116,7 +123,13 @@ struct ProfileTabView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("开发者选项").font(.headline)
-                    Toggle("管理员模式", isOn: Binding(get: { store.isAdmin }, set: { store.isAdmin = $0 }))
+                    Toggle("管理员模式", isOn: Binding(
+                        get: { store.isAdmin },
+                        set: { newValue in
+                            store.isAdmin = newValue
+                            Task { await store.pushProfileToServer() }
+                        }
+                    ))
                     Text("开启后可使用救援详情里的编辑与状态流转、爱兔社区删帖、线下活动新增、橱窗收款管理及「管理通知」。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -128,6 +141,7 @@ struct ProfileTabView: View {
                 Button("退出登录", role: .destructive) {
                     store.isLoggedIn = false
                     toast = "已退出登录"
+                    Task { await store.pushProfileToServer() }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -142,8 +156,11 @@ struct ProfileTabView: View {
     /// 未读角标：站内信 + 管理员未读通知（仅管理员模式）
     private var messageBadgeCount: Int? {
         guard store.isLoggedIn else { return nil }
-        let userUnread = UserInboxStore.unreadCount()
-        let adminUnread = store.isAdmin ? AdminNotificationsStore.load().filter { !$0.read }.count : 0
+        let useAPI = RabbitAPIConfiguration.normalizedBaseURL() != nil
+        let userUnread = useAPI ? store.profileInboxUnread : UserInboxStore.unreadCount()
+        let adminUnread = store.isAdmin
+            ? (useAPI ? store.profileAdminUnread : AdminNotificationsStore.load().filter { !$0.read }.count)
+            : 0
         let total = userUnread + adminUnread
         return total > 0 ? total : nil
     }

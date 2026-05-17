@@ -67,12 +67,12 @@ struct AdoptionTabView: View {
         }
         .sheet(isPresented: $showCreateRabbitPost) {
             CreateRabbitCommunityPostSheet {
-                rabbitPosts = RabbitCommunityStore.load()
+                Task { await refreshAdoptionData() }
             }
         }
         .sheet(item: $adoptionTarget) { post in
-            AdoptionIntentSheet(post: post) {
-                toast = "领养意向已提交（演示）"
+            AdoptionIntentSheet(post: post) { message in
+                toast = message
             }
         }
         .confirmationDialog("删除这条动态？", isPresented: Binding(
@@ -103,6 +103,25 @@ struct AdoptionTabView: View {
     }
 
     private func deleteCommunityPost(id: String) {
+        Task {
+            await performDeleteCommunityPost(id: id)
+        }
+    }
+
+    @MainActor
+    private func performDeleteCommunityPost(id: String) async {
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            do {
+                try await RabbitAPIService.deleteCommunityPost(id: id)
+                rabbitPosts = await RabbitAPIService.fetchCommunityPosts()
+                RabbitCommunityStore.replaceAll(rabbitPosts)
+                toast = "已删除该动态"
+                return
+            } catch {
+                toast = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                return
+            }
+        }
         var all = RabbitCommunityStore.load()
         all.removeAll { $0.id == id }
         RabbitCommunityStore.replaceAll(all)
@@ -145,7 +164,9 @@ struct AdoptionTabView: View {
             .filter { $0.moderationStatus == "approved" }
         storybookSource = all.filter { $0.status != "寄养中" }
         fosterRabbits = all.filter { $0.status == "寄养中" }
-        rabbitPosts = RabbitCommunityStore.load()
+        let posts = await RabbitAPIService.fetchCommunityPosts()
+        rabbitPosts = posts
+        RabbitCommunityStore.replaceAll(posts)
     }
 
     private var storybookFromRescue: some View {
@@ -320,6 +341,24 @@ struct AdoptionTabView: View {
     }
 
     private func toggleLike(_ post: RabbitCommunityPost) {
+        Task {
+            await performToggleLike(post)
+        }
+    }
+
+    @MainActor
+    private func performToggleLike(_ post: RabbitCommunityPost) async {
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            do {
+                _ = try await RabbitAPIService.toggleCommunityPostLike(id: post.id)
+                rabbitPosts = await RabbitAPIService.fetchCommunityPosts()
+                RabbitCommunityStore.replaceAll(rabbitPosts)
+                return
+            } catch {
+                toast = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                return
+            }
+        }
         var all = RabbitCommunityStore.load()
         guard let i = all.firstIndex(where: { $0.id == post.id }) else { return }
         var p = all[i]

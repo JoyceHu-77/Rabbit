@@ -19,8 +19,14 @@ def _new_post_id() -> str:
     return f"RC{int(time.time() * 1000)}"
 
 
-def create_adoption_intent(db: Session, body: AdoptionIntentCreate) -> AdoptionIntent:
-    if db.get(RescuePost, body.rescue_id) is None:
+def create_adoption_intent(
+    db: Session,
+    body: AdoptionIntentCreate,
+    *,
+    viewer_key: str = "anonymous",
+) -> AdoptionIntent:
+    rescue = db.get(RescuePost, body.rescue_id)
+    if rescue is None:
         raise ValueError("rescue_not_found")
     row = AdoptionIntent(
         id=_new_intent_id(),
@@ -33,6 +39,23 @@ def create_adoption_intent(db: Session, body: AdoptionIntentCreate) -> AdoptionI
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    rabbit_name = (rescue.title or "").split(" - ", 1)[0].strip() or body.rescue_id
+    from app import crud_profile
+
+    if viewer_key and viewer_key != "anonymous":
+        crud_profile.create_inbox_message(
+            db,
+            viewer_key,
+            title="领养申请已提交",
+            body=f"您已提交对 {rabbit_name}（{body.rescue_id}）的领养意向，请等待管理员审核。",
+        )
+    crud_profile.create_admin_notification(
+        db,
+        type="adopt",
+        title="新领养意向",
+        content=f"救援帖 {body.rescue_id}（{rabbit_name}）收到领养申请，联系人 {body.applicant_name}。",
+    )
     return row
 
 

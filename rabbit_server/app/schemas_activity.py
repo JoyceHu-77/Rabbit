@@ -151,3 +151,5 @@ class CloudAdoptConfirmOut(BaseModel):
     rescue_id: str
     amount_yuan: int
     cloud_coins_granted: int
+    badges_granted: int = 1
+    profile: Optional[Any] = None  # ProfileOut dict when wallet updated

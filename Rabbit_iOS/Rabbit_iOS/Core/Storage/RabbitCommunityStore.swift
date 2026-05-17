@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct RabbitCommunityPost: Codable, Identifiable, Equatable {
+nonisolated struct RabbitCommunityPost: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var authorName: String
     var title: String
@@ -16,7 +16,7 @@ struct RabbitCommunityPost: Codable, Identifiable, Equatable {
     var likedByUser: Bool
 }
 
-enum RabbitCommunityStore {
+nonisolated enum RabbitCommunityStore {
     private static let key = "savedRabbitCommunityPosts"
 
     static func load() -> [RabbitCommunityPost] {

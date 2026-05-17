@@ -49,6 +49,7 @@ struct TabBarSettingsSheet: View {
 }
 
 struct AddressEditorSheet: View {
+    @Environment(AppDataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @AppStorage("userShippingAddress") private var addressText: String = "上海市浦东新区××路××号"
 
@@ -71,7 +72,18 @@ struct AddressEditorSheet: View {
                     Button("关闭") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("完成") {
+                        Task {
+                            await store.pushProfileToServer()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .onAppear {
+                if addressText.isEmpty {
+                    addressText = UserDefaults.standard.string(forKey: "userShippingAddress")
+                        ?? "上海市浦东新区××路××号"
                 }
             }
         }

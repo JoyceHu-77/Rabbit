@@ -10,11 +10,7 @@ struct ActivityTabView: View {
     @Environment(AppDataStore.self) private var store
     @State private var topTab = 0
     @State private var bannerIndex = 0
-
-    private let banners: [(title: String, subtitle: String, image: String)] = [
-        ("只取心滴", "日行一善公益打卡活动", "https://images.unsplash.com/photo-1533514114760-4389f572ae26?w=600"),
-        ("爱心云养计划", "公益云养小兔活动", "https://images.unsplash.com/photo-1591797057589-eb91f36c0a6f?w=600"),
-    ]
+    @State private var banners: [ActivityBannerItem] = ActivityBannerItem.fallbackDefaults
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,10 +29,10 @@ struct ActivityTabView: View {
                 case 0:
                     VStack(alignment: .leading, spacing: 18) {
                         activityBanners
-                        if bannerIndex == 0 {
-                            CheckinActivityContent()
-                        } else {
+                        if banners.indices.contains(bannerIndex), banners[bannerIndex].targetKey == "cloud" {
                             CloudAdoptActivityContent()
+                        } else {
+                            CheckinActivityContent()
                         }
                     }
                     .padding(.bottom, 20)
@@ -48,6 +44,15 @@ struct ActivityTabView: View {
                         .padding(.vertical, 12)
                 }
             }
+        }
+        .task { await loadBanners() }
+    }
+
+    private func loadBanners() async {
+        let loaded = await RabbitAPIService.fetchActivityBanners()
+        banners = loaded
+        if bannerIndex >= banners.count {
+            bannerIndex = 0
         }
     }
 
@@ -66,12 +71,12 @@ struct ActivityTabView: View {
         VStack(alignment: .leading, spacing: 16) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
-                    ForEach(Array(banners.enumerated()), id: \.offset) { i, b in
+                    ForEach(Array(banners.enumerated()), id: \.element.id) { i, b in
                         Button {
                             bannerIndex = i
                         } label: {
                             ZStack(alignment: .bottomLeading) {
-                                PostImageView(urlString: b.image)
+                                PostImageView(urlString: b.imageURL)
                                     .frame(width: 240, height: 120)
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                                 LinearGradient(colors: [.clear, Color.red.opacity(0.75)], startPoint: .top, endPoint: .bottom)
@@ -89,7 +94,7 @@ struct ActivityTabView: View {
                 .padding(.horizontal)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("「\(banners[bannerIndex].title)」").font(.headline)
+                Text("「\(banners.indices.contains(bannerIndex) ? banners[bannerIndex].title : "")」").font(.headline)
                 Text("在下方完成打卡或云养流程，奖章与云养币将写入「个人页」。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

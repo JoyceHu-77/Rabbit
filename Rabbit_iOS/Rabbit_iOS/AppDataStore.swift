@@ -26,6 +26,13 @@ final class AppDataStore {
     private(set) var lastRescueListMeta: PaginationMeta?
     private(set) var lastDonationListMeta: PaginationMeta?
 
+    /// 个人页角标（来自服务端站内信 / 管理通知）。
+    private(set) var profileInboxUnread: Int = 0
+    private(set) var profileAdminUnread: Int = 0
+
+    @ObservationIgnored
+    private var suppressProfilePush = false
+
     /// 必须使用存储属性，`@Observable` 才能感应管理员开关；底层同步 `AppSettingsEntity.isAdmin`。
     var isAdmin = false {
         didSet {
@@ -51,7 +58,11 @@ final class AppDataStore {
 
     var userName: String {
         get { settings.userName ?? "爱心用户" }
-        set { settings.userName = newValue; save() }
+        set {
+            settings.userName = newValue
+            APIAuthHeaders.setViewerName(newValue)
+            save()
+        }
     }
 
     var userBio: String {
@@ -95,6 +106,7 @@ final class AppDataStore {
         }
         // 与 Core Data 对齐；在 init 中赋值不触发 `didSet`。
         isAdmin = settings.isAdmin
+        APIAuthHeaders.setViewerName(settings.userName ?? "爱心用户")
     }
 
     func save() {
@@ -105,6 +117,82 @@ final class AppDataStore {
 
     func bumpTabBarConfiguration() {
         tabBarConfigurationEpoch += 1
+    }
+
+    func currentProfileSnapshot() -> ProfileSnapshot {
+        let addr = UserDefaults.standard.string(forKey: "userShippingAddress") ?? ""
+        return ProfileSnapshot(
+            viewerKey: "",
+            userName: userName,
+            userBio: userBio,
+            badges: badges,
+            cloudCoins: cloudCoins,
+            isAdmin: isAdmin,
+            isLoggedIn: isLoggedIn,
+            shippingAddress: addr
+        )
+    }
+
+    func applyProfileFromServer(_ profile: ProfileSnapshot) {
+        suppressProfilePush = true
+        defer { suppressProfilePush = false }
+        userName = profile.userName
+        userBio = profile.userBio
+        badges = profile.badges
+        cloudCoins = profile.cloudCoins
+        isAdmin = profile.isAdmin
+        isLoggedIn = profile.isLoggedIn
+        if !profile.shippingAddress.isEmpty {
+            UserDefaults.standard.set(profile.shippingAddress, forKey: "userShippingAddress")
+        }
+    }
+
+    func syncProfileFromServer() async {
+        guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        do {
+            let profile = try await RabbitAPIService.fetchProfile()
+            applyProfileFromServer(profile)
+        } catch {
+            return
+        }
+        if let inbox = try? await RabbitAPIService.fetchProfileInbox() {
+            profileInboxUnread = inbox.filter { !$0.read }.count
+        }
+        if isAdmin, let admin = try? await RabbitAPIService.fetchAdminNotifications() {
+            profileAdminUnread = admin.filter { !$0.read }.count
+        } else {
+            profileAdminUnread = 0
+        }
+    }
+
+    func pushProfileToServer() async {
+        guard !suppressProfilePush, RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        _ = try? await RabbitAPIService.patchProfile(currentProfileSnapshot())
+    }
+
+    func adjustWalletOnServer(badgesDelta: Int, cloudCoinsDelta: Int) async {
+        guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        do {
+            let profile = try await RabbitAPIService.adjustWallet(
+                badgesDelta: badgesDelta,
+                cloudCoinsDelta: cloudCoinsDelta
+            )
+            applyProfileFromServer(profile)
+        } catch {
+            return
+        }
+    }
+
+    func refreshProfileBadgeCounts() async {
+        guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        if let inbox = try? await RabbitAPIService.fetchProfileInbox() {
+            profileInboxUnread = inbox.filter { !$0.read }.count
+        }
+        if isAdmin, let admin = try? await RabbitAPIService.fetchAdminNotifications() {
+            profileAdminUnread = admin.filter { !$0.read }.count
+        } else {
+            profileAdminUnread = 0
+        }
     }
 
     func shouldShowWelcomeModal() -> Bool {

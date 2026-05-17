@@ -198,10 +198,10 @@ struct CloudAdoptActivityContent: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("确认") {
-                            let coins = max(1, amount / 10)
-                            store.cloudCoins += coins
-                            toast = "云养成功，\(coins) 云养币已到账"
-                            showSheet = false
+                            guard let r = selected else { return }
+                            Task {
+                                await confirmCloudAdopt(rescue: r, amount: amount)
+                            }
                         }
                     }
                 }
@@ -254,62 +254,43 @@ struct CloudAdoptActivityContent: View {
         }
         return post.title
     }
+
+    @MainActor
+    private func confirmCloudAdopt(rescue: RescueDisplayPost, amount: Int) async {
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            do {
+                let result = try await RabbitAPIService.confirmCloudAdopt(
+                    rescueId: rescue.id,
+                    amountYuan: amount
+                )
+                if let profile = result.profile {
+                    store.applyProfileFromServer(profile)
+                } else {
+                    store.cloudCoins += result.cloudCoinsGranted
+                }
+                await store.refreshProfileBadgeCounts()
+                toast = "云养成功，\(result.cloudCoinsGranted) 云养币已到账"
+                showSheet = false
+                return
+            } catch {
+                toast = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                return
+            }
+        }
+        let coins = max(1, amount / 10)
+        store.cloudCoins += coins
+        toast = "云养成功，\(coins) 云养币已到账（本地）"
+        showSheet = false
+    }
 }
 
 // MARK: - 线下活动
 
-struct OfflineEventDisplay: Identifiable, Equatable, Hashable {
-    let id: Int
-    let title: String
-    let date: String
-    let location: String
-    let imageURL: String
-    let bannerURL: String?
-    let description: String
-    let isPast: Bool
-}
-
-private let offlineSeedPast: [OfflineEventDisplay] = [
-    OfflineEventDisplay(
-        id: 1,
-        title: "春日兔友百人聚 - 上海首场",
-        date: "2026-04-05",
-        location: "市中心 6600㎡ 超大场馆",
-        imageURL: "https://images.unsplash.com/photo-1533514114760-4389f572ae26?w=600",
-        bannerURL: "https://images.unsplash.com/photo-1650199321281-978455fbff64?w=600",
-        description: "超过 150 位兔友齐聚一堂，分享养兔经验，交流爱心故事。",
-        isPast: true
-    ),
-]
-
-private let offlineSeedUpcoming: [OfflineEventDisplay] = [
-    OfflineEventDisplay(
-        id: 2,
-        title: "春日兔友百人聚",
-        date: "2026-04-29",
-        location: "市中心 6600㎡ 超大场馆 | 品牌商家赞助",
-        imageURL: "https://images.unsplash.com/photo-1533514114760-4389f572ae26?w=600",
-        bannerURL: "https://images.unsplash.com/photo-1765401237810-e403bf6b888d?w=600",
-        description: "丰富礼品、专业服务与知识分享，欢迎所有爱兔人士参加。",
-        isPast: false
-    ),
-    OfflineEventDisplay(
-        id: 3,
-        title: "爱兔会公益活动",
-        date: "2026-05-15",
-        location: "上海市区待定",
-        imageURL: "https://images.unsplash.com/photo-1591797057589-eb91f36c0a6f?w=600",
-        bannerURL: "https://images.unsplash.com/photo-1649750291679-1ee88c324527?w=600",
-        description: "流浪兔救助知识、科学养兔交流、领养咨询与爱心义卖。",
-        isPast: false
-    ),
-]
-
 struct OfflineEventsContent: View {
     @Environment(AppDataStore.self) private var store
-    @State private var past: [OfflineEventDisplay] = offlineSeedPast
-    @State private var upcoming: [OfflineEventDisplay] = offlineSeedUpcoming
-    @State private var selected: OfflineEventDisplay?
+    @State private var past: [OfflineEventItem] = OfflineEventItem.fallbackPast
+    @State private var upcoming: [OfflineEventItem] = OfflineEventItem.fallbackUpcoming
+    @State private var selected: OfflineEventItem?
     @State private var showCreateEvent = false
 
     var body: some View {
@@ -367,9 +348,18 @@ struct OfflineEventsContent: View {
                 upcoming.insert(newEvent, at: 0)
             }
         }
+        .task { await reloadOfflineEvents() }
+        .refreshable { await reloadOfflineEvents() }
     }
 
-    private func eventCard(_ e: OfflineEventDisplay) -> some View {
+    private func reloadOfflineEvents() async {
+        async let pastRows = RabbitAPIService.fetchOfflineEvents(isPast: true)
+        async let upcomingRows = RabbitAPIService.fetchOfflineEvents(isPast: false)
+        past = await pastRows
+        upcoming = await upcomingRows
+    }
+
+    private func eventCard(_ e: OfflineEventItem) -> some View {
         Button {
             selected = e
         } label: {
@@ -399,20 +389,9 @@ struct OfflineEventsContent: View {
 
 // MARK: - 爱心橱窗
 
-struct CharityShopProduct: Identifiable {
-    let id: String
-    let title: String
-    let rabbitName: String
-    let image: String
-    let description: String
-    let price: Int
-    let badges: Int
-    let cloudCoins: Int
-}
-
 struct CharityShopContent: View {
     @Environment(AppDataStore.self) private var store
-    @State private var products: [CharityShopProduct] = []
+    @State private var products: [CharityShopProductItem] = []
     @State private var toast: String?
     @State private var showQRHint = false
 
@@ -444,7 +423,10 @@ struct CharityShopContent: View {
         }
         .padding(.horizontal)
         .task {
-            products = buildProducts()
+            products = await RabbitAPIService.fetchCharityProducts()
+        }
+        .refreshable {
+            products = await RabbitAPIService.fetchCharityProducts()
         }
         .alert("管理员", isPresented: $showQRHint) {
             Button("好的", role: .cancel) {}
@@ -459,32 +441,7 @@ struct CharityShopContent: View {
         }
     }
 
-    private func buildProducts() -> [CharityShopProduct] {
-        RabbitAPIService.fallbackRescuePosts()
-            .filter { $0.status != "已去世" && $0.status != "已领养" }
-            .map { r in
-                let name = rabbitShortName(r)
-                return CharityShopProduct(
-                    id: r.id,
-                    title: "\(name)的电子照片",
-                    rabbitName: name,
-                    image: r.images.first ?? "",
-                    description: "云养\(name)兔兔的一点心意，用于粮草、医疗与生活支出。",
-                    price: 5,
-                    badges: 1,
-                    cloudCoins: 5
-                )
-            }
-    }
-
-    private func rabbitShortName(_ post: RescueDisplayPost) -> String {
-        if let range = post.title.range(of: " - ") {
-            return String(post.title[..<range.lowerBound])
-        }
-        return post.title
-    }
-
-    private func charityCard(_ p: CharityShopProduct) -> some View {
+    private func charityCard(_ p: CharityShopProductItem) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             PostImageView(urlString: p.image)
                 .aspectRatio(1, contentMode: .fill)
@@ -507,22 +464,12 @@ struct CharityShopContent: View {
                 .frame(maxWidth: .infinity)
                 HStack(spacing: 8) {
                     Button("奖章兑换") {
-                        if store.badges >= p.badges {
-                            store.badges -= p.badges
-                            toast = "已用 \(p.badges) 枚奖章兑换"
-                        } else {
-                            toast = "奖章不足"
-                        }
+                        Task { await redeemWithBadges(p) }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                     Button("云养币兑换") {
-                        if store.cloudCoins >= p.cloudCoins {
-                            store.cloudCoins -= p.cloudCoins
-                            toast = "已用 \(p.cloudCoins) 云养币兑换"
-                        } else {
-                            toast = "云养币不足"
-                        }
+                        Task { await redeemWithCloudCoins(p) }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
@@ -533,18 +480,50 @@ struct CharityShopContent: View {
         .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
         .shadow(radius: 3)
     }
+
+    @MainActor
+    private func redeemWithBadges(_ p: CharityShopProductItem) async {
+        guard store.badges >= p.badges else {
+            toast = "奖章不足"
+            return
+        }
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            await store.adjustWalletOnServer(badgesDelta: -p.badges, cloudCoinsDelta: 0)
+            toast = "已用 \(p.badges) 枚奖章兑换"
+        } else {
+            store.badges -= p.badges
+            toast = "已用 \(p.badges) 枚奖章兑换"
+        }
+    }
+
+    @MainActor
+    private func redeemWithCloudCoins(_ p: CharityShopProductItem) async {
+        guard store.cloudCoins >= p.cloudCoins else {
+            toast = "云养币不足"
+            return
+        }
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            await store.adjustWalletOnServer(badgesDelta: 0, cloudCoinsDelta: -p.cloudCoins)
+            toast = "已用 \(p.cloudCoins) 云养币兑换"
+        } else {
+            store.cloudCoins -= p.cloudCoins
+            toast = "已用 \(p.cloudCoins) 云养币兑换"
+        }
+    }
 }
 
 // MARK: - 管理员：新建线下活动（简版，对齐 Web CreateEventDialog 入口）
 
 private struct CreateOfflineEventSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let onSave: (OfflineEventDisplay) -> Void
+    let onSave: (OfflineEventItem) -> Void
 
     @State private var title = ""
     @State private var date = ""
     @State private var location = ""
     @State private var detail = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -569,21 +548,55 @@ private struct CreateOfflineEventSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("发布") {
-                        let event = OfflineEventDisplay(
-                            id: Int.random(in: 10_000 ... 99_999),
-                            title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名活动" : title,
-                            date: date.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "日期待定" : date,
-                            location: location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "地点待定" : location,
-                            imageURL: "https://images.unsplash.com/photo-1591797057589-eb91f36c0a6f?w=600",
-                            bannerURL: nil,
-                            description: detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "活动内容待定，敬请关注。" : detail,
-                            isPast: false
-                        )
-                        onSave(event)
-                        dismiss()
+                        Task { await publishEvent() }
                     }
+                    .disabled(isSaving)
                 }
             }
+            if let errorMessage {
+                Text(errorMessage).font(.caption).foregroundStyle(.red)
+            }
         }
+    }
+
+    @MainActor
+    private func publishEvent() async {
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let d = date.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loc = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let desc = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        isSaving = true
+        errorMessage = nil
+        defer { isSaving = false }
+
+        if RabbitAPIConfiguration.normalizedBaseURL() != nil {
+            do {
+                let saved = try await RabbitAPIService.createOfflineEvent(
+                    title: t.isEmpty ? "未命名活动" : t,
+                    date: d.isEmpty ? "日期待定" : d,
+                    location: loc.isEmpty ? "地点待定" : loc,
+                    description: desc.isEmpty ? "活动内容待定，敬请关注。" : desc
+                )
+                onSave(saved)
+                dismiss()
+                return
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                return
+            }
+        }
+
+        let local = OfflineEventItem(
+            id: "OE\(Int(Date().timeIntervalSince1970 * 1000))",
+            title: t.isEmpty ? "未命名活动" : t,
+            date: d.isEmpty ? "日期待定" : d,
+            location: loc.isEmpty ? "地点待定" : loc,
+            imageURL: "https://images.unsplash.com/photo-1591797057589-eb91f36c0a6f?w=600",
+            bannerURL: nil,
+            description: desc.isEmpty ? "活动内容待定，敬请关注。" : desc,
+            isPast: false
+        )
+        onSave(local)
+        dismiss()
     }
 }

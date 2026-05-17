@@ -1,4 +1,3 @@
-//
 //  RabbitAPIService.swift
 //  Rabbit_iOS — 使用 Alamofire 拉取列表数据；失败时使用 Bundle 种子与本地 mock。
 //
@@ -199,13 +198,23 @@ nonisolated private struct DonationAPIItem: Decodable, Sendable {
 }
 
 nonisolated enum RabbitAPIService {
-    private nonisolated static func makeJSONDecoder() -> JSONDecoder {
+    nonisolated static func makeJSONDecoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
+        d.dateDecodingStrategy = .custom { decoder in
+            let c = try decoder.singleValueContainer()
+            let raw = try c.decode(String.self)
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = f.date(from: raw) { return d }
+            f.formatOptions = [.withInternetDateTime]
+            if let d = f.date(from: raw) { return d }
+            throw DecodingError.dataCorruptedError(in: c, debugDescription: "Invalid date: \(raw)")
+        }
         return d
     }
 
-    private nonisolated static func makeJSONEncoder() -> JSONEncoder {
+    nonisolated static func makeJSONEncoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
         return e
