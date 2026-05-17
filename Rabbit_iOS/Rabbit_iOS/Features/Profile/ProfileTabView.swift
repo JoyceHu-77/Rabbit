@@ -13,13 +13,7 @@ struct ProfileTabView: View {
 
     var body: some View {
         NavigationStack(path: $profilePath) {
-            Group {
-                if !store.isLoggedIn {
-                    loggedOutCard
-                } else {
-                    loggedInContent
-                }
-            }
+            loggedInContent
             .navigationDestination(for: ProfileRoute.self) { route in
                 switch route {
                 case .messages:
@@ -61,32 +55,6 @@ struct ProfileTabView: View {
         }
     }
 
-    private var loggedOutCard: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 64))
-                .foregroundStyle(.red.opacity(0.7))
-            Text("欢迎来到爱兔会").font(.title2.bold())
-            Text("登录后享受更多功能").foregroundStyle(.secondary)
-            Button("立即登录") {
-                store.isLoggedIn = true
-                toast = "登录成功"
-                Task {
-                    await store.pushProfileToServer()
-                    await store.syncProfileFromServer()
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.pink)
-        }
-        .padding(32)
-        .frame(maxWidth: 320)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 20))
-        .shadow(radius: 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(LinearGradient(colors: [Color.pink.opacity(0.15), Color.purple.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing))
-    }
-
     private var loggedInContent: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -113,6 +81,12 @@ struct ProfileTabView: View {
                                         .foregroundStyle(.white.opacity(0.75))
                                 }
                                 Text(store.userBio).font(.caption).foregroundStyle(.white.opacity(0.85))
+                                if let account = currentLocalAccount {
+                                    Text("用户 ID \(account.id) · \(account.capabilitySummary)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.72))
+                                        .lineLimit(2)
+                                }
                             }
                             Spacer(minLength: 0)
                         }
@@ -150,27 +124,11 @@ struct ProfileTabView: View {
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.06), radius: 4)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("开发者选项").font(.headline)
-                    Toggle("管理员模式", isOn: Binding(
-                        get: { store.isAdmin },
-                        set: { newValue in
-                            store.isAdmin = newValue
-                            Task { await store.pushProfileToServer() }
-                        }
-                    ))
-                    Text("开启后可使用救援详情里的编辑与状态流转、爱兔社区删帖、线下活动新增、橱窗收款管理及「管理通知」。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
+                roleCapabilityCard
 
                 Button("退出登录", role: .destructive) {
-                    store.isLoggedIn = false
-                    toast = "已退出登录"
-                    Task { await store.pushProfileToServer() }
+                    store.logout()
+                    toast = nil
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -183,6 +141,33 @@ struct ProfileTabView: View {
             await store.syncProfileFromServer()
         }
         .background(LinearGradient(colors: [Color.pink.opacity(0.12), Color.purple.opacity(0.1), Color.orange.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    private var currentLocalAccount: LocalAuthAccount? {
+        guard let id = store.localUserId else { return nil }
+        return LocalAuthCatalog.account(for: id)
+    }
+
+    @ViewBuilder
+    private var roleCapabilityCard: some View {
+        if let account = currentLocalAccount {
+            VStack(alignment: .leading, spacing: 10) {
+                Label(account.isAdmin ? "管理员能力" : "普通用户能力", systemImage: account.isAdmin ? "shield.fill" : "person.fill")
+                    .font(.headline)
+                    .foregroundStyle(account.isAdmin ? .orange : Theme.red600)
+                Text(account.capabilitySummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if !account.isAdmin {
+                    Text("如需审核、管理通知等能力，请退出后使用用户 ID 1 登录。")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
+        }
     }
 
     /// 我的发布数量角标（含待审/驳回，仅展示数字提示）

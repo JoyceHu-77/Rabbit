@@ -22,11 +22,6 @@ final class RescueListViewModel {
     var pageSize = 12
     var loadedCount = 12
 
-    init() {
-        appliedFilters.statuses = ["待救援"]
-        filterState = appliedFilters
-    }
-
     var appliedFiltersStatusKey: String {
         let s = appliedFilters.statuses.sorted().joined(separator: ",")
         let d = appliedFilters.districts.sorted().joined(separator: ",")

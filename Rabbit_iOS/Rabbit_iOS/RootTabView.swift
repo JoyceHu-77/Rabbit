@@ -13,7 +13,7 @@ private enum GuideButtonLayout {
 }
 
 struct RootTabView: View {
-    @State private var appData = AppDataStore()
+    @Environment(AppDataStore.self) private var appData
     @State private var tabCoordinator = MainTabCoordinator()
     @State private var showWelcome = false
     @State private var showWelcomeButton = false
@@ -28,7 +28,6 @@ struct RootTabView: View {
         }
         .id(appData.tabBarConfigurationEpoch)
         .tint(Color(red: 0.86, green: 0.15, blue: 0.15))
-        .environment(appData)
         .environment(tabCoordinator)
         .onChange(of: appData.tabBarConfigurationEpoch) { _, _ in
             let tabs = TabOrderSettings.orderedTabs()

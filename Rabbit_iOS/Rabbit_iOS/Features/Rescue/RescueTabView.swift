@@ -11,6 +11,7 @@ struct RescueTabView: View {
     @State private var viewModel = RescueListViewModel()
     @State private var showCreate = false
     @State private var selectedPost: RescueDisplayPost?
+    @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -19,9 +20,13 @@ struct RescueTabView: View {
 
                 if viewModel.showFilters {
                     RescueFiltersView(filters: $viewModel.filterState, onApply: {
+                        isSearchFieldFocused = false
                         viewModel.appliedFilters = viewModel.filterState
                         viewModel.applyFilters(viewerUserName: store.userName)
-                    }, onClose: { viewModel.showFilters = false })
+                    }, onClose: {
+                        isSearchFieldFocused = false
+                        viewModel.showFilters = false
+                    })
                 }
 
                 filterChips
@@ -29,9 +34,12 @@ struct RescueTabView: View {
                 ScrollView {
                     rescueScrollInner
                 }
+                .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(TapGesture().onEnded { isSearchFieldFocused = false })
             }
 
             Button {
+                isSearchFieldFocused = false
                 showCreate = true
             } label: {
                 Image(systemName: "plus")
@@ -106,6 +114,7 @@ struct RescueTabView: View {
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(viewModel.posts) { p in
                     Button {
+                        isSearchFieldFocused = false
                         selectedPost = p
                     } label: {
                         RescueCardView(post: p, layout: .feed)
@@ -127,18 +136,21 @@ struct RescueTabView: View {
             Text("🐰 爱兔救援")
                 .font(.largeTitle.bold())
                 .foregroundStyle(.white)
+                .onTapGesture { isSearchFieldFocused = false }
 
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.gray)
                 TextField("搜索兔兔姓名、编号…", text: $viewModel.searchQuery)
                     .textFieldStyle(.plain)
+                    .focused($isSearchFieldFocused)
             }
             .padding(10)
             .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 10))
 
             HStack(spacing: 10) {
                 Button {
+                    isSearchFieldFocused = false
                     viewModel.sortLatest.toggle()
                 } label: {
                     Label(viewModel.sortLatest ? "最新发布" : "最早发布", systemImage: "arrow.up.arrow.down")
@@ -148,6 +160,7 @@ struct RescueTabView: View {
                 .tint(.white)
 
                 Button {
+                    isSearchFieldFocused = false
                     viewModel.filterState = viewModel.appliedFilters
                     viewModel.showFilters.toggle()
                 } label: {
@@ -216,6 +229,7 @@ struct RescueTabView: View {
             }
             .background(Color.white)
             .overlay(alignment: .bottom) { Divider() }
+            .simultaneousGesture(TapGesture().onEnded { isSearchFieldFocused = false })
         }
     }
 
@@ -246,7 +260,10 @@ struct RescueTabView: View {
             Text("🐰").font(.system(size: 72))
             Text("没有找到兔兔").font(.title3.weight(.medium))
             Text("试试调整筛选条件或发布新的救援信息").font(.footnote).foregroundStyle(.secondary)
-            Button("发布救援信息") { showCreate = true }
+            Button("发布救援信息") {
+                isSearchFieldFocused = false
+                showCreate = true
+            }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
         }

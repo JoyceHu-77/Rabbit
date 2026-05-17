@@ -44,9 +44,12 @@ final class AppDataStore {
         }
     }
 
-    var isLoggedIn: Bool {
-        get { settings.isLoggedIn }
-        set { settings.isLoggedIn = newValue; save() }
+    /// 必须使用存储属性，`@Observable` 才能感应登录态并驱动 `AppRootView` 切换。
+    var isLoggedIn = false {
+        didSet {
+            settings.isLoggedIn = isLoggedIn
+            save()
+        }
     }
 
     var hasSeenWelcome: Bool {
@@ -90,6 +93,26 @@ final class AppDataStore {
         }
     }
 
+    /// 端内演示登录的用户 ID（`1` 管理员，`2` 普通用户）；非空时角色以本地账号为准。
+    var localUserId: String? {
+        get {
+            let raw = UserDefaults.standard.string(forKey: Self.localUserIdKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return raw.isEmpty ? nil : raw
+        }
+        set {
+            if let newValue, !newValue.isEmpty {
+                UserDefaults.standard.set(newValue, forKey: Self.localUserIdKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.localUserIdKey)
+            }
+        }
+    }
+
+    private static let localUserIdKey = "rabbit_local_user_id"
+
+    var usesLocalAuth: Bool { localUserId != nil }
+
     init(container: NSPersistentContainer? = nil) {
         let resolved = container ?? PersistenceController.shared.container
         self.container = resolved
@@ -103,8 +126,8 @@ final class AppDataStore {
             let s = AppSettingsEntity(context: ctx)
             s.settingsID = "app"
             s.hasSeenWelcome = false
-            s.isAdmin = true
-            s.isLoggedIn = true
+            s.isAdmin = false
+            s.isLoggedIn = false
             s.userName = "爱心用户"
             s.userBio = "热爱兔兔，致力于救助流浪动物"
             s.badges = 3
@@ -116,7 +139,42 @@ final class AppDataStore {
         }
         // 与 Core Data 对齐；在 init 中赋值不触发 `didSet`。
         isAdmin = settings.isAdmin
+        isLoggedIn = settings.isLoggedIn
         APIAuthHeaders.setViewerName(settings.userName ?? "爱心用户")
+        migrateLegacySessionIfNeeded()
+    }
+
+    /// 旧版默认已登录但未记录本地用户 ID 时，按管理员开关回填演示 ID。
+    private func migrateLegacySessionIfNeeded() {
+        guard isLoggedIn, localUserId == nil else { return }
+        localUserId = isAdmin ? LocalAuthCatalog.admin.id : LocalAuthCatalog.member.id
+    }
+
+    /// 端内用户 ID 登录；成功返回 `nil`，失败返回错误文案。
+    @discardableResult
+    func login(withUserId rawId: String) -> String? {
+        let trimmed = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let account = LocalAuthCatalog.account(for: trimmed) else {
+            return "无效的用户 ID，请使用 1（管理员）或 2（普通用户）"
+        }
+        applyLocalAccount(account)
+        isLoggedIn = true
+        return nil
+    }
+
+    func logout() {
+        localUserId = nil
+        isLoggedIn = false
+        isAdmin = false
+    }
+
+    private func applyLocalAccount(_ account: LocalAuthAccount) {
+        localUserId = account.id
+        userName = account.displayName
+        userBio = account.bio
+        badges = account.badges
+        cloudCoins = account.cloudCoins
+        isAdmin = account.isAdmin
     }
 
     func save() {
@@ -145,6 +203,12 @@ final class AppDataStore {
     func applyProfileFromServer(_ profile: ProfileSnapshot) {
         suppressProfilePush = true
         defer { suppressProfilePush = false }
+        if usesLocalAuth {
+            if !profile.shippingAddress.isEmpty {
+                shippingAddress = profile.shippingAddress
+            }
+            return
+        }
         userName = profile.userName
         userBio = profile.userBio
         badges = profile.badges
@@ -158,6 +222,7 @@ final class AppDataStore {
 
     func syncProfileFromServer() async {
         guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        guard !usesLocalAuth else { return }
         do {
             let profile = try await RabbitAPIService.fetchProfile()
             applyProfileFromServer(profile)
@@ -175,7 +240,7 @@ final class AppDataStore {
     }
 
     func pushProfileToServer() async {
-        guard !suppressProfilePush, RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        guard !suppressProfilePush, !usesLocalAuth, RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
         _ = try? await RabbitAPIService.patchProfile(currentProfileSnapshot())
     }
 
@@ -193,7 +258,7 @@ final class AppDataStore {
     }
 
     func refreshProfileBadgeCounts() async {
-        guard RabbitAPIConfiguration.normalizedBaseURL() != nil else { return }
+        guard RabbitAPIConfiguration.normalizedBaseURL() != nil, !usesLocalAuth else { return }
         if let inbox = try? await RabbitAPIService.fetchProfileInbox() {
             profileInboxUnread = inbox.filter { !$0.read }.count
         }
