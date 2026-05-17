@@ -298,7 +298,11 @@ struct RescueDetailView: View {
     private var imageCarousel: some View {
         TabView {
             ForEach(post.images, id: \.self) { u in
-                PostImageView(urlString: u)
+                PostImageView(
+                    urlString: u,
+                    rescuePostId: post.id,
+                    sourceRabbitId: post.sourceRabbitId
+                )
                     .frame(height: 260)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
             }

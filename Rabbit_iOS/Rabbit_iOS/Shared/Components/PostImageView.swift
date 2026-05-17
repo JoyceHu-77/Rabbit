@@ -7,22 +7,61 @@ import SwiftUI
 
 struct PostImageView: View {
     let urlString: String?
+    /// 救援帖 ID（如 `R003`），网络失败时按种子数据回退本地图。
+    var rescuePostId: String? = nil
+    /// 种子兔兔 ID，API 图片地址与种子不一致时的回退键。
+    var sourceRabbitId: Int32? = nil
 
     var body: some View {
         Group {
-            if let u = resolvedURL(urlString) {
+            if RescueFeedMedia.isBundleImagePath(urlString),
+               let local = RescueFeedMedia.uiImage(
+                   for: urlString,
+                   rescuePostId: rescuePostId,
+                   sourceRabbitId: sourceRabbitId
+               ) {
+                Image(uiImage: local)
+                    .resizable()
+                    .scaledToFill()
+            } else if let u = resolvedHTTPURL(urlString) {
                 AsyncImage(url: u) { phase in
                     switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    case .failure: placeholder
-                    default: ProgressView()
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    case .failure:
+                        localOrPlaceholder
+                    default:
+                        ProgressView()
                     }
                 }
+            } else if let local = RescueFeedMedia.uiImage(
+                for: urlString,
+                rescuePostId: rescuePostId,
+                sourceRabbitId: sourceRabbitId
+            ) {
+                Image(uiImage: local)
+                    .resizable()
+                    .scaledToFill()
             } else {
                 placeholder
             }
         }
         .accessibilityLabel(L10n.Common.imageContent)
+    }
+
+    @ViewBuilder
+    private var localOrPlaceholder: some View {
+        if let local = RescueFeedMedia.uiImage(
+            for: urlString,
+            rescuePostId: rescuePostId,
+            sourceRabbitId: sourceRabbitId
+        ) {
+            Image(uiImage: local)
+                .resizable()
+                .scaledToFill()
+        } else {
+            placeholder
+        }
     }
 
     private var placeholder: some View {
@@ -33,11 +72,10 @@ struct PostImageView: View {
         .accessibilityHidden(true)
     }
 
-    private func resolvedURL(_ s: String?) -> URL? {
+    private func resolvedHTTPURL(_ s: String?) -> URL? {
         guard let s, !s.isEmpty else { return nil }
-        if s.hasPrefix("http") { return URL(string: s) }
+        if s.hasPrefix("http://") || s.hasPrefix("https://") { return URL(string: s) }
         if s.hasPrefix("file:") { return URL(string: s) }
-        if s.hasPrefix("/") { return URL(fileURLWithPath: s) }
         return nil
     }
 }
@@ -45,6 +83,8 @@ struct PostImageView: View {
 /// 双列网格 1:1 缩略图：`LazyVGrid` 内需明确宽高后再 `scaledToFill`，否则图片会撑破列宽导致重叠。
 struct SquareGridThumbnail: View {
     let urlString: String
+    var rescuePostId: String? = nil
+    var sourceRabbitId: Int32? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -62,7 +102,18 @@ struct SquareGridThumbnail: View {
 
     @ViewBuilder
     private func content(width: CGFloat, height: CGFloat) -> some View {
-        if let url = resolvedURL(urlString) {
+        if RescueFeedMedia.isBundleImagePath(urlString),
+           let local = RescueFeedMedia.uiImage(
+               for: urlString,
+               rescuePostId: rescuePostId,
+               sourceRabbitId: sourceRabbitId
+           ) {
+            Image(uiImage: local)
+                .resizable()
+                .scaledToFill()
+                .frame(width: width, height: height)
+                .clipped()
+        } else if let url = resolvedHTTPURL(urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .empty:
@@ -75,12 +126,39 @@ struct SquareGridThumbnail: View {
                         .frame(width: width, height: height)
                         .clipped()
                 case .failure:
-                    placeholder
-                        .frame(width: width, height: height)
+                    localOrPlaceholder(width: width, height: height)
                 @unknown default:
                     Color.clear.frame(width: width, height: height)
                 }
             }
+        } else if let local = RescueFeedMedia.uiImage(
+            for: urlString,
+            rescuePostId: rescuePostId,
+            sourceRabbitId: sourceRabbitId
+        ) {
+            Image(uiImage: local)
+                .resizable()
+                .scaledToFill()
+                .frame(width: width, height: height)
+                .clipped()
+        } else {
+            placeholder
+                .frame(width: width, height: height)
+        }
+    }
+
+    @ViewBuilder
+    private func localOrPlaceholder(width: CGFloat, height: CGFloat) -> some View {
+        if let local = RescueFeedMedia.uiImage(
+            for: urlString,
+            rescuePostId: rescuePostId,
+            sourceRabbitId: sourceRabbitId
+        ) {
+            Image(uiImage: local)
+                .resizable()
+                .scaledToFill()
+                .frame(width: width, height: height)
+                .clipped()
         } else {
             placeholder
                 .frame(width: width, height: height)
@@ -97,14 +175,13 @@ struct SquareGridThumbnail: View {
         }
     }
 
-    private func resolvedURL(_ raw: String) -> URL? {
+    private func resolvedHTTPURL(_ raw: String) -> URL? {
         let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !s.isEmpty else { return nil }
         if s.hasPrefix("http://") || s.hasPrefix("https://") {
             return URL(string: s)
         }
         if s.hasPrefix("file:") { return URL(string: s) }
-        if s.hasPrefix("/") { return URL(fileURLWithPath: s) }
         return nil
     }
 }

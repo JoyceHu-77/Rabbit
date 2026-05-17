@@ -225,7 +225,11 @@ struct AdoptionTabView: View {
     private func fosterCard(_ p: RescueDisplayPost) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                PostImageView(urlString: p.images.first)
+                PostImageView(
+                    urlString: p.images.first,
+                    rescuePostId: p.id,
+                    sourceRabbitId: p.sourceRabbitId
+                )
                     .aspectRatio(1, contentMode: .fill)
                     .clipped()
                 Text("寄养中")

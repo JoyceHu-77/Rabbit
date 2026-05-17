@@ -37,12 +37,20 @@ struct RescueCardView: View {
                 Group {
                     switch layout {
                     case .grid:
-                        PostImageView(urlString: post.images.first)
+                        PostImageView(
+                            urlString: post.images.first,
+                            rescuePostId: post.id,
+                            sourceRabbitId: post.sourceRabbitId
+                        )
                             .aspectRatio(1, contentMode: .fill)
                             .clipped()
                     case .feed:
                         GeometryReader { geo in
-                            PostImageView(urlString: post.images.first)
+                            PostImageView(
+                                urlString: post.images.first,
+                                rescuePostId: post.id,
+                                sourceRabbitId: post.sourceRabbitId
+                            )
                                 .frame(width: geo.size.width, height: geo.size.height)
                                 .clipped()
                         }

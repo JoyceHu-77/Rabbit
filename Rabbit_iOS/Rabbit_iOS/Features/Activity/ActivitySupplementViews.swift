@@ -222,7 +222,11 @@ struct CloudAdoptActivityContent: View {
 
     private func cloudRow(_ r: RescueDisplayPost) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            PostImageView(urlString: r.images.first)
+            PostImageView(
+                urlString: r.images.first,
+                rescuePostId: r.id,
+                sourceRabbitId: r.sourceRabbitId
+            )
                 .frame(width: 72, height: 72)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 6) {
