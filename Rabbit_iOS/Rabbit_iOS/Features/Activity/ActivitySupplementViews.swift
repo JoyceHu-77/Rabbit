@@ -415,9 +415,15 @@ struct CharityShopContent: View {
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+            let columnGap: CGFloat = 12
+            let columns = [
+                GridItem(.flexible(minimum: 0), spacing: columnGap),
+                GridItem(.flexible(minimum: 0), spacing: columnGap),
+            ]
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(products) { p in
                     charityCard(p)
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -443,9 +449,8 @@ struct CharityShopContent: View {
 
     private func charityCard(_ p: CharityShopProductItem) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            PostImageView(urlString: p.image)
-                .aspectRatio(1, contentMode: .fill)
-                .clipped()
+            SquareGridThumbnail(urlString: p.image)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 8) {
                 Text(p.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(p.description).font(.caption2).foregroundStyle(.secondary).lineLimit(3)
@@ -477,7 +482,7 @@ struct CharityShopContent: View {
             }
             .padding(10)
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(radius: 3)
     }
 

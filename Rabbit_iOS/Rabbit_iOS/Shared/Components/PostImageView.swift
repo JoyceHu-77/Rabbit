@@ -41,3 +41,70 @@ struct PostImageView: View {
         return nil
     }
 }
+
+/// 双列网格 1:1 缩略图：`LazyVGrid` 内需明确宽高后再 `scaledToFill`，否则图片会撑破列宽导致重叠。
+struct SquareGridThumbnail: View {
+    let urlString: String
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            ZStack {
+                Color(.tertiarySystemFill)
+                content(width: w, height: h)
+            }
+            .frame(width: w, height: h)
+            .clipped()
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    @ViewBuilder
+    private func content(width: CGFloat, height: CGFloat) -> some View {
+        if let url = resolvedURL(urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(width: width, height: height)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: height)
+                        .clipped()
+                case .failure:
+                    placeholder
+                        .frame(width: width, height: height)
+                @unknown default:
+                    Color.clear.frame(width: width, height: height)
+                }
+            }
+        } else {
+            placeholder
+                .frame(width: width, height: height)
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color(.tertiarySystemFill)
+            Text("🐰").font(.title2)
+            Image(systemName: "photo")
+                .font(.title3)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func resolvedURL(_ raw: String) -> URL? {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        if s.hasPrefix("http://") || s.hasPrefix("https://") {
+            return URL(string: s)
+        }
+        if s.hasPrefix("file:") { return URL(string: s) }
+        if s.hasPrefix("/") { return URL(fileURLWithPath: s) }
+        return nil
+    }
+}

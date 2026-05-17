@@ -17,6 +17,7 @@ struct AppRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: appData.isLoggedIn)
+        .welcomeGuideOverlay(reservesTabBarSpace: appData.isLoggedIn)
         .environment(appData)
     }
 }

@@ -71,7 +71,7 @@ struct DonationTabView: View {
     private func donationCard(_ p: DonationDisplayPost) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                DonationSquareThumbnail(urlString: p.image)
+                SquareGridThumbnail(urlString: p.image)
                 HStack(spacing: 6) {
                     Text(p.type)
                         .font(.caption2.weight(.bold))
@@ -137,71 +137,6 @@ struct DonationTabView: View {
     }
 }
 
-/// 捐换网格 1:1 缩略图：`LazyVGrid` 内需明确宽高后再 `scaledToFill`，否则 `AsyncImage` 会按原图比例撑破布局
-private struct DonationSquareThumbnail: View {
-    let urlString: String
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            ZStack {
-                Color(.tertiarySystemFill)
-                content(width: w, height: h)
-            }
-            .frame(width: w, height: h)
-            .clipped()
-        }
-        .aspectRatio(1, contentMode: .fit)
-    }
-
-    @ViewBuilder
-    private func content(width: CGFloat, height: CGFloat) -> some View {
-        if let url = resolvedURL(urlString) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .frame(width: width, height: height)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: width, height: height)
-                        .clipped()
-                case .failure:
-                    placeholder
-                        .frame(width: width, height: height)
-                @unknown default:
-                    Color.clear.frame(width: width, height: height)
-                }
-            }
-        } else {
-            placeholder
-                .frame(width: width, height: height)
-        }
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            Color(.tertiarySystemFill)
-            Text("🐰").font(.title2)
-            Image(systemName: "photo")
-                .font(.title3)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private func resolvedURL(_ raw: String) -> URL? {
-        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty else { return nil }
-        if s.hasPrefix("http://") || s.hasPrefix("https://") {
-            return URL(string: s)
-        }
-        return nil
-    }
-}
-
 private struct DonationDetailSheet: View {
     let post: DonationDisplayPost
     var onToast: (String) -> Void
@@ -212,7 +147,7 @@ private struct DonationDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    DonationSquareThumbnail(urlString: post.image)
+                    SquareGridThumbnail(urlString: post.image)
                     Text(post.title).font(.title2.bold())
                     Text(post.description).font(.body).foregroundStyle(.secondary)
                     Label(post.date, systemImage: "calendar").font(.caption).foregroundStyle(.tertiary)
