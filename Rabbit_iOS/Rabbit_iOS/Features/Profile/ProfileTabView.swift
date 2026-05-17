@@ -8,38 +8,41 @@ import SwiftUI
 
 struct ProfileTabView: View {
     @Environment(AppDataStore.self) private var store
-    @State private var showMessages = false
-    @State private var showAddress = false
-    @State private var showOrders = false
-    @State private var showChat = false
-    @State private var showTabSettings = false
+    @State private var profilePath = NavigationPath()
     @State private var toast: String?
 
     var body: some View {
-        Group {
-            if !store.isLoggedIn {
-                loggedOutCard
-            } else {
-                loggedInContent
+        NavigationStack(path: $profilePath) {
+            Group {
+                if !store.isLoggedIn {
+                    loggedOutCard
+                } else {
+                    loggedInContent
+                }
             }
-        }
-        .sheet(isPresented: $showOrders) {
-            OrdersListSheet { earned in
-                store.cloudCoins += earned
-                toast = "\(earned) 云养币已到账！"
+            .navigationDestination(for: ProfileRoute.self) { route in
+                switch route {
+                case .messages:
+                    MessagesFlowView()
+                case .orders:
+                    OrdersFlowView { earned in
+                        if earned > 0 {
+                            store.cloudCoins += earned
+                            toast = "\(earned) 云养币已到账！"
+                        }
+                    }
+                case .myPosts:
+                    MyPostsFlowView()
+                case .address:
+                    AddressFlowView()
+                case .chat:
+                    ChatFlowView(userName: store.userName)
+                case .tabSettings:
+                    TabBarSettingsFlowView(store: store)
+                case .profileEdit:
+                    ProfileEditFlowView()
+                }
             }
-        }
-        .sheet(isPresented: $showMessages) {
-            MessagesSheet()
-        }
-        .sheet(isPresented: $showAddress) {
-            AddressEditorSheet()
-        }
-        .sheet(isPresented: $showChat) {
-            SimpleChatView(userName: store.userName)
-        }
-        .sheet(isPresented: $showTabSettings) {
-            TabBarSettingsSheet(store: store)
         }
         .overlay(alignment: .top) {
             if let t = toast {
@@ -48,7 +51,13 @@ struct ProfileTabView: View {
             }
         }
         .task {
+            UserInboxStore.ensureDemoSeedIfNeeded()
             await store.syncProfileFromServer()
+        }
+        .onChange(of: store.pendingProfileRoute) { _, route in
+            guard let route else { return }
+            profilePath.append(route)
+            store.pendingProfileRoute = nil
         }
     }
 
@@ -82,24 +91,33 @@ struct ProfileTabView: View {
         ScrollView {
             VStack(spacing: 18) {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 14) {
-                        Circle()
-                            .fill(.white.opacity(0.25))
-                            .frame(width: 72, height: 72)
-                            .overlay(Text(String(store.userName.prefix(1))).font(.title).foregroundStyle(.white))
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(store.userName).font(.title2.bold())
-                                if store.isAdmin {
-                                    Label("管理员", systemImage: "shield.fill")
-                                        .font(.caption2.weight(.bold))
-                                        .padding(.horizontal, 8).padding(.vertical, 4)
-                                        .background(Color.orange, in: Capsule())
+                    Button {
+                        profilePath.append(ProfileRoute.profileEdit)
+                    } label: {
+                        HStack(spacing: 14) {
+                            Circle()
+                                .fill(.white.opacity(0.25))
+                                .frame(width: 72, height: 72)
+                                .overlay(Text(String(store.userName.prefix(1))).font(.title).foregroundStyle(.white))
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(store.userName).font(.title2.bold())
+                                    if store.isAdmin {
+                                        Label("管理员", systemImage: "shield.fill")
+                                            .font(.caption2.weight(.bold))
+                                            .padding(.horizontal, 8).padding(.vertical, 4)
+                                            .background(Color.orange, in: Capsule())
+                                    }
+                                    Image(systemName: "pencil.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.75))
                                 }
+                                Text(store.userBio).font(.caption).foregroundStyle(.white.opacity(0.85))
                             }
-                            Text(store.userBio).font(.caption).foregroundStyle(.white.opacity(0.85))
+                            Spacer(minLength: 0)
                         }
                     }
+                    .buttonStyle(.plain)
                     HStack {
                         statBox(icon: "rosette", value: "\(store.badges)", label: "爱兔奖章")
                         statBox(icon: "bitcoinsign.circle", value: "\(store.cloudCoins)", label: "云养币")
@@ -110,13 +128,24 @@ struct ProfileTabView: View {
                 .background(LinearGradient(colors: [Color.pink, Color.purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 18))
 
                 VStack(spacing: 0) {
-                    profileRow("bell", "我的消息", badge: messageBadgeCount) { showMessages = true }
-                    profileRow("bag", "我的订单", badge: nil) { showOrders = true }
-                    profileRow("heart", "我的发布", badge: nil) { toast = "请在「爱兔救援」筛选「我的发布」" }
-                    profileRow("message.fill", "好友聊天", badge: nil) { showChat = true }
-                    profileRow("mappin.and.ellipse", "收货地址", badge: nil) { showAddress = true }
-                    profileRow("square.grid.2x2", "底部导航顺序", badge: nil) { showTabSettings = true }
-                    profileRow("gearshape", "设置", badge: nil) { toast = "系统设置入口（演示）" }
+                    profileRow("bell", "我的消息", badge: messageBadgeCount) {
+                        profilePath.append(ProfileRoute.messages)
+                    }
+                    profileRow("bag", "我的订单", badge: nil) {
+                        profilePath.append(ProfileRoute.orders)
+                    }
+                    profileRow("heart", "我的发布", badge: myPostsBadgeCount) {
+                        profilePath.append(ProfileRoute.myPosts)
+                    }
+                    profileRow("message.fill", "好友聊天", badge: nil) {
+                        profilePath.append(ProfileRoute.chat)
+                    }
+                    profileRow("mappin.and.ellipse", "收货地址", badge: nil) {
+                        profilePath.append(ProfileRoute.address)
+                    }
+                    profileRow("square.grid.2x2", "底部导航顺序", badge: nil) {
+                        profilePath.append(ProfileRoute.tabSettings)
+                    }
                 }
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.06), radius: 4)
@@ -150,7 +179,16 @@ struct ProfileTabView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        .refreshable {
+            await store.syncProfileFromServer()
+        }
         .background(LinearGradient(colors: [Color.pink.opacity(0.12), Color.purple.opacity(0.1), Color.orange.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    /// 我的发布数量角标（含待审/驳回，仅展示数字提示）
+    private var myPostsBadgeCount: Int? {
+        let n = store.myPublishedRescuePosts().count
+        return n > 0 ? n : nil
     }
 
     /// 未读角标：站内信 + 管理员未读通知（仅管理员模式）
@@ -178,24 +216,22 @@ struct ProfileTabView: View {
 
     private func profileRow(_ icon: String, _ title: String, badge: Int?, action: @escaping () -> Void) -> some View {
         VStack(spacing: 0) {
-            Button(action: action) {
-                HStack {
-                    Image(systemName: icon).foregroundStyle(.secondary)
-                    Text(title)
-                    Spacer()
-                    if let b = badge {
-                        Text("\(b)")
-                            .font(.caption.weight(.bold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.red, in: Capsule())
-                            .foregroundStyle(.white)
-                    }
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            HStack {
+                Image(systemName: icon).foregroundStyle(.secondary)
+                Text(title)
+                Spacer()
+                if let b = badge {
+                    Text("\(b)")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red, in: Capsule())
+                        .foregroundStyle(.white)
                 }
-                .padding()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }
-            .buttonStyle(.plain)
+            .padding()
+            .profileFullWidthCellTap(action: action)
             Divider()
                 .padding(.leading)
         }

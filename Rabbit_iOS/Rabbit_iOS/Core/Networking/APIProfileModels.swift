@@ -16,7 +16,7 @@ nonisolated struct ProfileSnapshot: Sendable, Equatable {
     var shippingAddress: String
 }
 
-nonisolated struct ProfileOrderItem: Identifiable, Sendable, Equatable {
+nonisolated struct ProfileOrderItem: Identifiable, Sendable, Equatable, Hashable {
     var id: String
     var title: String
     var subtitle: String
@@ -27,7 +27,7 @@ nonisolated struct ProfileOrderItem: Identifiable, Sendable, Equatable {
     var isPending: Bool { status == "pending" }
 }
 
-nonisolated struct ProfileInboxItem: Identifiable, Sendable, Equatable {
+nonisolated struct ProfileInboxItem: Identifiable, Sendable, Equatable, Hashable {
     var id: String
     var title: String
     var body: String
@@ -35,7 +35,7 @@ nonisolated struct ProfileInboxItem: Identifiable, Sendable, Equatable {
     var read: Bool
 }
 
-nonisolated struct ProfileAdminNoticeItem: Identifiable, Sendable, Equatable {
+nonisolated struct ProfileAdminNoticeItem: Identifiable, Sendable, Equatable, Hashable {
     var id: String
     var type: String
     var title: String

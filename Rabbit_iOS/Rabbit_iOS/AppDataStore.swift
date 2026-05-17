@@ -30,6 +30,9 @@ final class AppDataStore {
     private(set) var profileInboxUnread: Int = 0
     private(set) var profileAdminUnread: Int = 0
 
+    /// 子页面请求跳转（如管理通知详情里「前往订单」）。
+    var pendingProfileRoute: ProfileRoute?
+
     @ObservationIgnored
     private var suppressProfilePush = false
 
@@ -80,6 +83,13 @@ final class AppDataStore {
         set { settings.cloudCoins = Int32(newValue); save() }
     }
 
+    var shippingAddress: String {
+        get { UserDefaults.standard.string(forKey: "userShippingAddress") ?? "" }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "userShippingAddress")
+        }
+    }
+
     init(container: NSPersistentContainer? = nil) {
         let resolved = container ?? PersistenceController.shared.container
         self.container = resolved
@@ -120,7 +130,6 @@ final class AppDataStore {
     }
 
     func currentProfileSnapshot() -> ProfileSnapshot {
-        let addr = UserDefaults.standard.string(forKey: "userShippingAddress") ?? ""
         return ProfileSnapshot(
             viewerKey: "",
             userName: userName,
@@ -129,7 +138,7 @@ final class AppDataStore {
             cloudCoins: cloudCoins,
             isAdmin: isAdmin,
             isLoggedIn: isLoggedIn,
-            shippingAddress: addr
+            shippingAddress: shippingAddress
         )
     }
 
@@ -143,7 +152,7 @@ final class AppDataStore {
         isAdmin = profile.isAdmin
         isLoggedIn = profile.isLoggedIn
         if !profile.shippingAddress.isEmpty {
-            UserDefaults.standard.set(profile.shippingAddress, forKey: "userShippingAddress")
+            shippingAddress = profile.shippingAddress
         }
     }
 
@@ -231,6 +240,45 @@ final class AppDataStore {
         rescuePostsCache.filter { $0.isListedForViewer(isAdmin: isAdmin, viewerUserName: viewerUserName) }
     }
 
+    /// 当前用户发布的全部救援帖（含待审核、已驳回），按日期倒序。
+    func myPublishedRescuePosts() -> [RescueDisplayPost] {
+        let me = userName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !me.isEmpty else { return [] }
+        return rescuePostsCache
+            .filter {
+                ($0.publisherName ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == me
+            }
+            .sorted {
+                RescuePostLogic.parseChineseDate($0.date) > RescuePostLogic.parseChineseDate($1.date)
+            }
+    }
+
+    /// 拉取「我的发布」列表（优先 `mine=1`，并带发帖人昵称）。
+    func refreshMyPublishedRescues() async {
+        let me = userName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var query = RescueListQuery(mine: 1)
+        if !me.isEmpty {
+            query.publisherName = me
+        }
+        let r = await RabbitAPIService.fetchRescues(query: query)
+        if !r.posts.isEmpty {
+            mergeRescuesIntoCache(r.posts)
+        } else if rescuePostsCache.isEmpty {
+            await refreshRescues()
+        }
+    }
+
+    /// 将接口返回的帖子合并进缓存（按 id 覆盖/追加），不整表替换以免丢失其他筛选结果。
+    private func mergeRescuesIntoCache(_ incoming: [RescueDisplayPost]) {
+        for post in incoming {
+            if let i = rescuePostsCache.firstIndex(where: { $0.id == post.id }) {
+                rescuePostsCache[i] = post
+            } else {
+                rescuePostsCache.append(post)
+            }
+        }
+    }
+
     func upsertRescue(_ post: RescueDisplayPost) {
         if let i = rescuePostsCache.firstIndex(where: { $0.id == post.id }) {
             rescuePostsCache[i] = post
@@ -250,6 +298,7 @@ final class AppDataStore {
             let saved = try await RabbitAPIService.createRescue(post)
             upsertRescue(saved)
             notifyRescueSubmitted(saved)
+            await refreshProfileBadgeCounts()
             return nil
         } catch {
             return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -257,6 +306,7 @@ final class AppDataStore {
     }
 
     private func notifyRescueSubmitted(_ post: RescueDisplayPost) {
+        guard RabbitAPIConfiguration.normalizedBaseURL() == nil else { return }
         UserInboxStore.append(
             title: "救援帖审核中",
             body: "您提交的「\(post.title)」（编号 \(post.id)）已进入审核，通过后将对所有人展示。"

@@ -73,6 +73,20 @@ class WalletAdjust(BaseModel):
     badges_delta: int = 0
     cloud_coins_delta: int = 0
 
+    @model_validator(mode="before")
+    @classmethod
+    def aliases(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        for camel, snake in (
+            ("badgesDelta", "badges_delta"),
+            ("cloudCoinsDelta", "cloud_coins_delta"),
+        ):
+            if camel in out and snake not in out:
+                out[snake] = out.pop(camel)
+        return out
+
 
 class InboxMessageOut(BaseModel):
     id: str

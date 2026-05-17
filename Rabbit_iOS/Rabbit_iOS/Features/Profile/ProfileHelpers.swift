@@ -8,126 +8,162 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
-struct TabBarSettingsSheet: View {
+// MARK: - Push 流程页（由 ProfileTabView NavigationStack 承载，勿再套 Sheet）
+
+struct TabBarSettingsFlowView: View {
     var store: AppDataStore
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("个人页位置（快捷）") {
-                    Button("个人页移到末尾（PRD 默认）") {
-                        TabOrderSettings.applyProfilePositionTrailing()
-                        store.bumpTabBarConfiguration()
-                    }
-                    Button("个人页移到中间") {
-                        TabOrderSettings.applyProfilePositionMiddle()
-                        store.bumpTabBarConfiguration()
-                    }
+        Form {
+            Section("个人页位置（快捷）") {
+                Button("个人页移到末尾（PRD 默认）") {
+                    TabOrderSettings.applyProfilePositionTrailing()
+                    store.bumpTabBarConfiguration()
                 }
-                Section("预设") {
-                    Button("恢复 PRD 五 Tab 默认顺序") {
-                        TabOrderSettings.resetToPRDDefault()
-                        store.bumpTabBarConfiguration()
-                    }
-                }
-                Section("当前顺序") {
-                    Text(TabOrderSettings.orderedTabs().map(\.title).joined(separator: " → "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Button("个人页移到中间") {
+                    TabOrderSettings.applyProfilePositionMiddle()
+                    store.bumpTabBarConfiguration()
                 }
             }
-            .navigationTitle("底部导航")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+            Section("预设") {
+                Button("恢复 PRD 五 Tab 默认顺序") {
+                    TabOrderSettings.resetToPRDDefault()
+                    store.bumpTabBarConfiguration()
                 }
+            }
+            Section("当前顺序") {
+                Text(TabOrderSettings.orderedTabs().map(\.title).joined(separator: " → "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
+        .navigationTitle("底部导航")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-struct AddressEditorSheet: View {
+struct ProfileEditFlowView: View {
     @Environment(AppDataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("userShippingAddress") private var addressText: String = "上海市浦东新区××路××号"
+    @State private var name = ""
+    @State private var bio = ""
+    @State private var isSaving = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("仅用于徽章寄送、爱心橱窗等实物发货（与 PRD 一致）")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Section("详细地址") {
-                    TextField("省市区与街道门牌", text: $addressText, axis: .vertical)
-                        .lineLimit(3 ... 8)
-                }
+        Form {
+            Section("昵称") {
+                TextField("显示名称", text: $name)
             }
-            .navigationTitle("收货地址")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+            Section("个人简介") {
+                TextField("一句话介绍自己", text: $bio, axis: .vertical)
+                    .lineLimit(2 ... 5)
+            }
+        }
+        .navigationTitle("编辑资料")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("保存") {
+                    Task { await save() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
-                        Task {
-                            await store.pushProfileToServer()
-                            dismiss()
-                        }
+                .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .onAppear {
+            name = store.userName
+            bio = store.userBio
+        }
+    }
+
+    @MainActor
+    private func save() async {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        isSaving = true
+        defer { isSaving = false }
+        store.userName = trimmedName
+        store.userBio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        await store.pushProfileToServer()
+        await store.syncProfileFromServer()
+        dismiss()
+    }
+}
+
+struct AddressFlowView: View {
+    @Environment(AppDataStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var addressText = ""
+
+    var body: some View {
+        Form {
+            Section {
+                Text("仅用于徽章寄送、爱心橱窗等实物发货（与 PRD 一致）")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section("详细地址") {
+                TextField("省市区与街道门牌", text: $addressText, axis: .vertical)
+                    .lineLimit(3 ... 8)
+            }
+        }
+        .navigationTitle("收货地址")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("完成") {
+                    store.shippingAddress = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Task {
+                        await store.pushProfileToServer()
+                        dismiss()
                     }
                 }
             }
-            .onAppear {
-                if addressText.isEmpty {
-                    addressText = UserDefaults.standard.string(forKey: "userShippingAddress")
-                        ?? "上海市浦东新区××路××号"
-                }
-            }
+        }
+        .onAppear {
+            let addr = store.shippingAddress
+            addressText = addr.isEmpty ? "上海市浦东新区××路××号" : addr
         }
     }
 }
 
-struct SimpleChatView: View {
+struct ChatFlowView: View {
     let userName: String
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("我的好友码（演示）").font(.headline)
-                        Text("其他用户在「添加好友」中扫描即可发起会话（一期占位）。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if let img = QRImageGenerator.uiImage(from: "rabbit://friend/\(userName)") {
-                            Image(uiImage: img)
-                                .interpolation(.none)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 160, height: 160)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                Section("会话（演示）") {
-                    NavigationLink {
-                        ChatThreadView(peerName: "爱兔会小助手")
-                    } label: {
-                        Label("爱兔会小助手", systemImage: "bubble.left.and.bubble.right.fill")
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("我的好友码（演示）").font(.headline)
+                    Text("其他用户在「添加好友」中扫描即可发起会话（一期占位）。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let img = QRImageGenerator.uiImage(from: "rabbit://friend/\(userName)") {
+                        Image(uiImage: img)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 160, height: 160)
                     }
                 }
+                .padding(.vertical, 8)
             }
-            .navigationTitle("好友与聊天")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+            Section("会话（演示）") {
+                NavigationLink {
+                    ChatThreadView(peerName: "爱兔会小助手")
+                } label: {
+                    HStack {
+                        Label("爱兔会小助手", systemImage: "bubble.left.and.bubble.right.fill")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .profileCellHitArea()
                 }
             }
         }
+        .navigationTitle("好友与聊天")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -140,17 +176,16 @@ struct ChatThreadView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(messages.enumerated()), id: \.offset) { _, m in
-                            Text(m)
-                                .padding(12)
-                                .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                        }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(messages.enumerated()), id: \.offset) { _, m in
+                        Text(m)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding()
                 }
+                .padding()
             }
             HStack {
                 TextField("发送文字…", text: $draft)

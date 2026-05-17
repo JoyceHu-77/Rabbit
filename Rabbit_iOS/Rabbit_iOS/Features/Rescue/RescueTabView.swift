@@ -7,6 +7,7 @@ import SwiftUI
 
 struct RescueTabView: View {
     @Environment(AppDataStore.self) private var store
+    @Environment(MainTabCoordinator.self) private var tabCoordinator
     @State private var viewModel = RescueListViewModel()
     @State private var showCreate = false
     @State private var selectedPost: RescueDisplayPost?
@@ -48,6 +49,10 @@ struct RescueTabView: View {
         }
         .task {
             await viewModel.refreshWithLoadingDelay(store: store)
+            applyMyPostsFilterIfNeeded()
+        }
+        .onChange(of: tabCoordinator.openRescueMyPostsOnNextAppear) { _, flag in
+            if flag { applyMyPostsFilterIfNeeded() }
         }
         .onChange(of: viewModel.sortLatest) { _, _ in
             Task { await viewModel.refreshWithLoadingDelay(store: store) }
@@ -247,5 +252,14 @@ struct RescueTabView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
+    }
+
+    private func applyMyPostsFilterIfNeeded() {
+        guard tabCoordinator.openRescueMyPostsOnNextAppear else { return }
+        tabCoordinator.openRescueMyPostsOnNextAppear = false
+        viewModel.appliedFilters.statuses = []
+        viewModel.appliedFilters.myPosts = true
+        viewModel.filterState = viewModel.appliedFilters
+        viewModel.applyFilters(viewerUserName: store.userName)
     }
 }

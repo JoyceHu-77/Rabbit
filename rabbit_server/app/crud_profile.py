@@ -33,6 +33,7 @@ def get_or_create_profile(db: Session, viewer_key: str) -> UserProfile:
     db.commit()
     db.refresh(row)
     ensure_demo_order(db, viewer_key)
+    ensure_seed_inbox(db, viewer_key)
     return row
 
 
@@ -106,7 +107,28 @@ def create_inbox_message(
     return row
 
 
+def ensure_seed_inbox(db: Session, viewer_key: str) -> None:
+    if viewer_key in ("", "anonymous"):
+        return
+    stmt = select(UserInboxMessage).where(UserInboxMessage.viewer_key == viewer_key)
+    if db.scalars(stmt).first() is not None:
+        return
+    create_inbox_message(
+        db,
+        viewer_key,
+        title="欢迎加入爱兔会",
+        body="感谢您成为爱兔会的一员，让我们一起为兔兔的幸福而努力！",
+    )
+    create_inbox_message(
+        db,
+        viewer_key,
+        title="订单待支付提醒",
+        body="您可在「我的订单」查看爱心橱窗演示订单，支付完成后云养币将自动到账。",
+    )
+
+
 def list_inbox_messages(db: Session, viewer_key: str) -> list[UserInboxMessage]:
+    ensure_seed_inbox(db, viewer_key)
     stmt = (
         select(UserInboxMessage)
         .where(UserInboxMessage.viewer_key == viewer_key)
@@ -181,6 +203,30 @@ def list_orders(db: Session, viewer_key: str) -> list[UserOrder]:
         .order_by(UserOrder.created_at.desc())
     )
     return list(db.scalars(stmt).all())
+
+
+def notify_rescue_submitted(
+    db: Session,
+    viewer_key: str,
+    *,
+    rescue_id: str,
+    title: str,
+) -> None:
+    """用户提交救援帖后写入站内信与管理通知。"""
+    display_title = (title or "").strip() or rescue_id
+    if viewer_key and viewer_key != "anonymous":
+        create_inbox_message(
+            db,
+            viewer_key,
+            title="救援帖审核中",
+            body=f"您提交的「{display_title}」（编号 {rescue_id}）已进入审核，通过后将对所有人展示。",
+        )
+    create_admin_notification(
+        db,
+        type="rescue",
+        title="新救援帖待审核",
+        content=f"[{rescue_id}] {display_title}",
+    )
 
 
 def pay_order(db: Session, viewer_key: str, order_id: str) -> tuple[UserOrder, UserProfile] | None:

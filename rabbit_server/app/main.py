@@ -366,8 +366,22 @@ def get_rescues(
 
 
 @app.post("/v1/rescues", status_code=201)
-def post_rescue(body: RescueCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def post_rescue(
+    body: RescueCreate,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
     row = crud.upsert_rescue(db, body)
+    vk = _viewer_key(authorization)
+    pub = (getattr(body, "publisher_name", None) or "").strip()
+    if pub and vk in ("", "anonymous"):
+        vk = pub
+    crud_profile.notify_rescue_submitted(
+        db,
+        vk,
+        rescue_id=row.id,
+        title=row.title or "",
+    )
     return RescueOut.from_orm(row).model_dump(mode="json")
 
 

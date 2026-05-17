@@ -29,6 +29,7 @@ struct RootTabView: View {
         .id(appData.tabBarConfigurationEpoch)
         .tint(Color(red: 0.86, green: 0.15, blue: 0.15))
         .environment(appData)
+        .environment(tabCoordinator)
         .onChange(of: appData.tabBarConfigurationEpoch) { _, _ in
             let tabs = TabOrderSettings.orderedTabs()
             if !tabs.contains(tabCoordinator.selectedTab) {
