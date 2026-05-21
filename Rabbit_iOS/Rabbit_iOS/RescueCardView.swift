@@ -1,24 +1,13 @@
 
 //
 //  RescueCardView.swift
-//  Rabbit_iOS — 对应 RescueCard.tsx
+//  Rabbit_iOS — 对应 RescueCard.tsx；双列 feed 卡片与物资捐换规格一致
 //
 
 import SwiftUI
 
 struct RescueCardView: View {
     let post: RescueDisplayPost
-    /// `feed`：双列等宽 + 固定比例封面，图片铺满裁切（参考小红书首页）；`grid`：正方形封面。
-    var layout: RescueCardLayout = .grid
-
-    enum RescueCardLayout {
-        case grid
-        /// 首页信息流：列宽由 `LazyVGrid` 均分，封面 3:4 固定框，内容超出裁切。
-        case feed
-    }
-
-    /// 与小红书常见笔记封面接近（竖图）
-    private static let feedCoverAspect: CGFloat = 3.0 / 4.0
 
     private var statusBackground: Color {
         switch post.status {
@@ -33,39 +22,21 @@ struct RescueCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    switch layout {
-                    case .grid:
-                        PostImageView(
-                            urlString: post.images.first,
-                            rescuePostId: post.id,
-                            sourceRabbitId: post.sourceRabbitId
-                        )
-                            .aspectRatio(1, contentMode: .fill)
-                            .clipped()
-                    case .feed:
-                        GeometryReader { geo in
-                            PostImageView(
-                                urlString: post.images.first,
-                                rescuePostId: post.id,
-                                sourceRabbitId: post.sourceRabbitId
-                            )
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .clipped()
-                        }
-                        .aspectRatio(Self.feedCoverAspect, contentMode: .fit)
-                        .clipped()
-                    }
-                }
+            ZStack(alignment: .topLeading) {
+                SquareGridThumbnail(
+                    urlString: post.images.first ?? "",
+                    rescuePostId: post.id,
+                    sourceRabbitId: post.sourceRabbitId
+                )
                 Text(post.status)
-                    .font(.caption2.weight(.medium))
+                    .font(.caption2.weight(.bold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(statusBackground, in: Capsule())
                     .overlay(Capsule().strokeBorder(Color.gray.opacity(0.25)))
                     .padding(8)
             }
+            .clipShape(DualColumnFeedLayout.cardShape)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(post.title)
@@ -116,7 +87,7 @@ struct RescueCardView: View {
             }
             .padding(10)
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .background(Color.white, in: DualColumnFeedLayout.cardShape)
+        .shadow(radius: 3)
     }
 }

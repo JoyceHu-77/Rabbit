@@ -17,25 +17,81 @@ private let adoptionSteps = [
     "申请退还押金",
 ]
 
-private enum AdoptionSection: Int, CaseIterable {
-    case process
-    case storybook
-    case adoptionCommunity
-    case rabbitCommunity
+/// 故事书卡片：通过 `AdoptionTabCoordinator` 切换子 Tab；图片区禁用点击，避免 ScrollView 内布局吞掉按钮。
+private struct RabbitStoryCardView: View {
+    var coordinator: AdoptionTabCoordinator
+    let name: String
+    let status: String
+    let date: String
+    let loc: String
+    let rescuer: String
+    let story: String
+    let image: String
+    var rescuePostId: String?
+    var sourceRabbitId: Int32?
 
-    var title: String {
-        switch self {
-        case .process: return "领养流程"
-        case .storybook: return "兔兔故事书"
-        case .adoptionCommunity: return "领养社区"
-        case .rabbitCommunity: return "爱兔社区"
+    var body: some View {
+        let cardShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                PostImageView(
+                    urlString: image,
+                    rescuePostId: rescuePostId,
+                    sourceRabbitId: sourceRabbitId
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+                .clipped()
+                .allowsHitTesting(false)
+
+                Text(status)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(10)
+            }
+            .frame(height: 200)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 10) {
+                Label(name, systemImage: "heart.fill")
+                    .font(.title3.bold())
+                HStack {
+                    Label(date, systemImage: "calendar")
+                    Spacer()
+                    Label(loc, systemImage: "mappin.and.ellipse")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Label("救助人：\(rescuer)", systemImage: "person")
+                    .font(.caption)
+                Text(story).font(.subheadline)
+                Button {
+                    coordinator.openAdoptionProcess()
+                } label: {
+                    Text("了解领养流程")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+                .background(Color.purple, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(.white)
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .padding()
+            .zIndex(1)
         }
+        .background(Color.white)
+        .clipShape(cardShape)
+        .shadow(radius: 4)
     }
 }
 
 struct AdoptionTabView: View {
     @Environment(AppDataStore.self) private var store
-    @State private var section: AdoptionSection = .process
+    @State private var coordinator = AdoptionTabCoordinator()
     @State private var storybookSource: [RescueDisplayPost] = []
     @State private var fosterRabbits: [RescueDisplayPost] = []
     @State private var rabbitPosts: [RabbitCommunityPost] = []
@@ -49,20 +105,22 @@ struct AdoptionTabView: View {
         VStack(spacing: 0) {
             headerPurple(title: "爱兔领养", subtitle: "给每只兔兔一个温暖的家")
             adoptionSectionBar
-            ScrollView {
-                Group {
-                    switch section {
-                    case .process: adoptionProcess
-                    case .storybook: storybookFromRescue
-                    case .adoptionCommunity: adoptionCommunityGrid
-                    case .rabbitCommunity: rabbitCommunityView
-                    }
+            Group {
+                switch coordinator.section {
+                case .process:
+                    adoptionScrollContent { adoptionProcess }
+                case .storybook:
+                    adoptionScrollContent { storybookFromRescue }
+                case .adoptionCommunity:
+                    adoptionScrollContent { adoptionCommunityGrid }
+                case .rabbitCommunity:
+                    adoptionScrollContent { rabbitCommunityView }
                 }
-                .padding()
             }
         }
+        .environment(coordinator)
         .task { await refreshAdoptionData() }
-        .onChange(of: section) { _, _ in
+        .onChange(of: coordinator.section) { _, _ in
             Task { await refreshAdoptionData() }
         }
         .sheet(isPresented: $showCreateRabbitPost) {
@@ -102,6 +160,16 @@ struct AdoptionTabView: View {
         }
     }
 
+    @ViewBuilder
+    private func adoptionScrollContent<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            content()
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .id(coordinator.section)
+    }
+
     private func deleteCommunityPost(id: String) {
         Task {
             await performDeleteCommunityPost(id: id)
@@ -134,19 +202,19 @@ struct AdoptionTabView: View {
             HStack(spacing: 10) {
                 ForEach(AdoptionSection.allCases, id: \.rawValue) { sec in
                     Button {
-                        section = sec
+                        coordinator.section = sec
                     } label: {
                         Text(sec.title)
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
                             .background(
-                                section == sec
+                                coordinator.section == sec
                                     ? LinearGradient(colors: [Color.red.opacity(0.9), Theme.rose.opacity(0.88)], startPoint: .leading, endPoint: .trailing)
                                     : LinearGradient(colors: [Color.white], startPoint: .leading, endPoint: .trailing),
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
-                            .foregroundStyle(section == sec ? Color.white : Color.secondary)
+                            .foregroundStyle(coordinator.section == sec ? Color.white : Color.secondary)
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.purple.opacity(0.15)))
                     }
                     .buttonStyle(.plain)
@@ -180,22 +248,21 @@ struct AdoptionTabView: View {
                 Text("暂无数据，请确认已加载救援列表").foregroundStyle(.secondary)
             } else {
                 ForEach(storybookSource) { p in
-                    storyCardFromPost(p)
+                    RabbitStoryCardView(
+                        coordinator: coordinator,
+                        name: rabbitShortName(p),
+                        status: p.status,
+                        date: p.date,
+                        loc: p.location,
+                        rescuer: p.finderName ?? p.organizerName ?? "志愿者",
+                        story: p.description,
+                        image: p.images.first ?? "",
+                        rescuePostId: p.id,
+                        sourceRabbitId: p.sourceRabbitId
+                    )
                 }
             }
         }
-    }
-
-    private func storyCardFromPost(_ p: RescueDisplayPost) -> some View {
-        storyCard(
-            name: rabbitShortName(p),
-            status: p.status,
-            date: p.date,
-            loc: p.location,
-            rescuer: p.finderName ?? p.organizerName ?? "志愿者",
-            story: p.description,
-            image: p.images.first ?? ""
-        )
     }
 
     private func rabbitShortName(_ p: RescueDisplayPost) -> String {
@@ -212,9 +279,10 @@ struct AdoptionTabView: View {
             if fosterRabbits.isEmpty {
                 Text("当前没有寄养中的兔兔").foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                DualColumnFeedGrid {
                     ForEach(fosterRabbits) { p in
                         fosterCard(p)
+                            .frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -222,16 +290,15 @@ struct AdoptionTabView: View {
         }
     }
 
+    /// 双列 feed 卡片布局与 `DonationTabView.donationCard` 一致（1:1 缩略图 + 白底圆角阴影）。
     private func fosterCard(_ p: RescueDisplayPost) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                PostImageView(
-                    urlString: p.images.first,
+                SquareGridThumbnail(
+                    urlString: p.images.first ?? "",
                     rescuePostId: p.id,
                     sourceRabbitId: p.sourceRabbitId
                 )
-                    .aspectRatio(1, contentMode: .fill)
-                    .clipped()
                 Text("寄养中")
                     .font(.caption2.weight(.bold))
                     .padding(.horizontal, 8)
@@ -240,30 +307,31 @@ struct AdoptionTabView: View {
                     .foregroundStyle(.white)
                     .padding(8)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(rabbitShortName(p)).font(.subheadline.weight(.semibold))
-                Text(truncate(p.description, limit: 72))
+            .clipShape(DualColumnFeedLayout.cardShape)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(rabbitShortName(p))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(p.description)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                Button("我要领养") {
+                    .lineLimit(2)
+                Button {
                     adoptionTarget = p
+                } label: {
+                    Label("我要领养", systemImage: "heart.fill")
+                        .font(.caption2.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(.purple)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .background(Color.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                .foregroundStyle(.purple)
             }
             .padding(10)
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.white, in: DualColumnFeedLayout.cardShape)
         .shadow(radius: 3)
-    }
-
-    private func truncate(_ s: String, limit: Int) -> String {
-        if s.count <= limit { return s }
-        let idx = s.index(s.startIndex, offsetBy: limit)
-        return String(s[..<idx]) + "…"
     }
 
     private var adoptionNoticeBlock: some View {
@@ -377,6 +445,23 @@ struct AdoptionTabView: View {
         rabbitPosts = all
     }
 
+    @ViewBuilder
+    private var adoptionGiftPackageImage: some View {
+        if let image = AdoptionMedia.uiImage(for: .giftPackage) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .accessibilityLabel("首月饲养礼包")
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        } else {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.15))
+                .frame(height: 160)
+                .overlay(Text("首月饲养礼包示意图").foregroundStyle(.secondary))
+        }
+    }
+
     private var adoptionProcess: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 10) {
@@ -412,10 +497,7 @@ struct AdoptionTabView: View {
             }
 
             Text("领养后享受的权益").font(.title3.bold())
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.gray.opacity(0.15))
-                .frame(height: 160)
-                .overlay(Text("首月饲养礼包示意图").foregroundStyle(.secondary))
+            adoptionGiftPackageImage
             benefitCard(title: "首月领养礼包", items: [
                 ("收助者", "免费获取粮草、兔粮包等，减轻初期养护负担"),
                 ("领养人", "免费救护车服务、兔粮赠品分享"),
@@ -453,42 +535,6 @@ struct AdoptionTabView: View {
         }
         .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
         .shadow(radius: 3)
-    }
-
-    private func storyCard(name: String, status: String, date: String, loc: String, rescuer: String, story: String, image: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                PostImageView(urlString: image)
-                    .frame(height: 200)
-                    .clipped()
-                Text(status)
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(10)
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Label(name, systemImage: "heart.fill")
-                    .font(.title3.bold())
-                HStack {
-                    Label(date, systemImage: "calendar")
-                    Spacer()
-                    Label(loc, systemImage: "mappin.and.ellipse")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                Label("救助人：\(rescuer)", systemImage: "person")
-                    .font(.caption)
-                Text(story).font(.subheadline)
-                Button("了解领养流程") { section = .process }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.purple)
-            }
-            .padding()
-        }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
-        .shadow(radius: 4)
     }
 
     private func headerPurple(title: String, subtitle: String) -> some View {

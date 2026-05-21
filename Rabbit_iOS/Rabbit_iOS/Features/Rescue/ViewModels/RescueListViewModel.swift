@@ -21,6 +21,8 @@ final class RescueListViewModel {
     var isLoading = true
     var pageSize = 12
     var loadedCount = 12
+    /// 本会话内是否已从网络拉过列表（避免从详情返回、筛选排序时重复请求）。
+    private(set) var hasFetchedFromNetwork = false
 
     var appliedFiltersStatusKey: String {
         let s = appliedFilters.statuses.sorted().joined(separator: ",")
@@ -83,17 +85,33 @@ final class RescueListViewModel {
     func loadMoreIfNeeded(currentItemId: String?) {
         guard let id = currentItemId,
               let idx = filteredAll.firstIndex(where: { $0.id == id }),
-              idx >= filteredAll.count - 3,
+              idx >= max(0, loadedCount - 3),
               loadedCount < filteredAll.count
         else { return }
         loadedCount = min(loadedCount + pageSize, filteredAll.count)
         posts = Array(filteredAll.prefix(loadedCount))
     }
 
-    func refreshWithLoadingDelay(store: AppDataStore) async {
-        isLoading = true
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
+    /// 从 `AppDataStore` 同步列表（不请求网络）。
+    func syncFromStore(_ store: AppDataStore) {
+        reloadFromStore(store)
+        applyFilters(viewerUserName: store.userName)
+        isLoading = false
+    }
+
+    /// 首次进入拉接口；`force == true` 时强制刷新（如下拉刷新）。
+    func fetchFromNetworkIfNeeded(store: AppDataStore, force: Bool = false) async {
+        if hasFetchedFromNetwork, !force {
+            syncFromStore(store)
+            return
+        }
+        let firstLoad = !hasFetchedFromNetwork
+        if firstLoad { isLoading = true }
+        if firstLoad {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
         await store.refreshRescues()
+        hasFetchedFromNetwork = true
         reloadFromStore(store)
         applyFilters(viewerUserName: store.userName)
         isLoading = false

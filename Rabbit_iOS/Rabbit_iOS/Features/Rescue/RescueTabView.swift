@@ -14,6 +14,12 @@ struct RescueTabView: View {
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
+        NavigationStack {
+            rescueRoot
+        }
+    }
+
+    private var rescueRoot: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 header
@@ -33,6 +39,9 @@ struct RescueTabView: View {
 
                 ScrollView {
                     rescueScrollInner
+                }
+                .refreshable {
+                    await viewModel.fetchFromNetworkIfNeeded(store: store, force: true)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .simultaneousGesture(TapGesture().onEnded { isSearchFieldFocused = false })
@@ -56,17 +65,17 @@ struct RescueTabView: View {
             .padding(.bottom, LayoutMetrics.fabBottomMargin)
         }
         .task {
-            await viewModel.refreshWithLoadingDelay(store: store)
+            await viewModel.fetchFromNetworkIfNeeded(store: store)
             applyMyPostsFilterIfNeeded()
         }
         .onChange(of: tabCoordinator.openRescueMyPostsOnNextAppear) { _, flag in
             if flag { applyMyPostsFilterIfNeeded() }
         }
         .onChange(of: viewModel.sortLatest) { _, _ in
-            Task { await viewModel.refreshWithLoadingDelay(store: store) }
+            viewModel.applyFilters(viewerUserName: store.userName)
         }
         .onChange(of: viewModel.appliedFiltersStatusKey) { _, _ in
-            Task { await viewModel.refreshWithLoadingDelay(store: store) }
+            viewModel.applyFilters(viewerUserName: store.userName)
         }
         .onChange(of: viewModel.searchQuery) { _, _ in
             viewModel.applyFilters(viewerUserName: store.userName)
@@ -85,16 +94,14 @@ struct RescueTabView: View {
                 p.id = store.nextRescuePostID()
                 let err = await store.createRescuePost(p)
                 if err == nil {
-                    viewModel.reloadFromStore(store)
-                    viewModel.applyFilters(viewerUserName: store.userName)
+                    viewModel.syncFromStore(store)
                 }
                 return err
             }
         }
-        .sheet(item: $selectedPost) { p in
+        .navigationDestination(item: $selectedPost) { p in
             RescueDetailView(post: p, viewerUserName: store.userName) {
-                viewModel.reloadFromStore(store)
-                viewModel.applyFilters(viewerUserName: store.userName)
+                viewModel.syncFromStore(store)
             }
         }
     }
@@ -106,18 +113,13 @@ struct RescueTabView: View {
         } else if viewModel.posts.isEmpty {
             emptyState
         } else {
-            let columnGap: CGFloat = 8
-            let columns = [
-                GridItem(.flexible(minimum: 0), spacing: columnGap),
-                GridItem(.flexible(minimum: 0), spacing: columnGap),
-            ]
-            LazyVGrid(columns: columns, spacing: 10) {
+            DualColumnFeedGrid {
                 ForEach(viewModel.posts) { p in
                     Button {
                         isSearchFieldFocused = false
                         selectedPost = p
                     } label: {
-                        RescueCardView(post: p, layout: .feed)
+                        RescueCardView(post: p)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -126,8 +128,7 @@ struct RescueTabView: View {
                     }
                 }
             }
-            .padding(.horizontal, LayoutMetrics.horizontalInset)
-            .padding(.vertical, 12)
+            .padding()
         }
     }
 

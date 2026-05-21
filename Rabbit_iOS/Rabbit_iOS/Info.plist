@@ -2,6 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>47.111.225.11</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>RABBIT_API_BASE_URL</key>
+	<string>http://47.111.225.11:8000</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -19,26 +34,5 @@
 			</array>
 		</dict>
 	</dict>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>47.111.225.11</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
-	<key>RABBIT_API_BASE_URL</key>
-	<string>http://47.111.225.11:8000</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>爱兔会需要访问相册，以便在救援帖、活动上传中发布照片。</string>
-	<key>NSCameraUsageDescription</key>
-	<string>爱兔会需要访问相机，以便您拍摄救援与活动相关照片（可选）。</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>爱兔会需要在地图选点中访问位置，以填写「城市-区县」救援地点。</string>
 </dict>
 </plist>

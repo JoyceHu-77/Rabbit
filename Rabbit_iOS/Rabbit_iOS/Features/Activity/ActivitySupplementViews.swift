@@ -419,12 +419,7 @@ struct CharityShopContent: View {
                 }
             }
 
-            let columnGap: CGFloat = 12
-            let columns = [
-                GridItem(.flexible(minimum: 0), spacing: columnGap),
-                GridItem(.flexible(minimum: 0), spacing: columnGap),
-            ]
-            LazyVGrid(columns: columns, spacing: 12) {
+            DualColumnFeedGrid {
                 ForEach(products) { p in
                     charityCard(p)
                         .frame(maxWidth: .infinity)
@@ -453,24 +448,30 @@ struct CharityShopContent: View {
 
     private func charityCard(_ p: CharityShopProductItem) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SquareGridThumbnail(urlString: p.image)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topLeading) {
+                SquareGridThumbnail(urlString: p.image)
+            }
+            .clipShape(DualColumnFeedLayout.cardShape)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(p.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text(p.description).font(.caption2).foregroundStyle(.secondary).lineLimit(3)
+                Text(p.description).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 HStack {
                     Text("¥\(p.price)").font(.subheadline.weight(.bold)).foregroundStyle(.pink)
                     Spacer()
                     Label("\(p.badges)", systemImage: "rosette").font(.caption2)
                     Label("\(p.cloudCoins)", systemImage: "bitcoinsign.circle").font(.caption2)
                 }
-                Button("购买") {
+                Button {
                     toast = "已创建演示订单：\(p.title)"
+                } label: {
+                    Text("购买")
+                        .font(.caption2.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(.orange)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                .foregroundStyle(.orange)
                 HStack(spacing: 8) {
                     Button("奖章兑换") {
                         Task { await redeemWithBadges(p) }
@@ -486,7 +487,7 @@ struct CharityShopContent: View {
             }
             .padding(10)
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.white, in: DualColumnFeedLayout.cardShape)
         .shadow(radius: 3)
     }
 

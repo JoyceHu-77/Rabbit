@@ -18,12 +18,13 @@ struct DonationTabView: View {
             VStack(spacing: 0) {
                 headerRose(title: "物资捐换", subtitle: "分享爱心，物尽其用")
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    DualColumnFeedGrid {
                         ForEach(posts) { p in
                             Button {
                                 detailPost = p
                             } label: {
                                 donationCard(p)
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.plain)
                         }
@@ -95,7 +96,7 @@ struct DonationTabView: View {
                         .padding(8)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(DualColumnFeedLayout.cardShape)
             VStack(alignment: .leading, spacing: 6) {
                 Text(p.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(p.description).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
@@ -115,7 +116,7 @@ struct DonationTabView: View {
             }
             .padding(10)
         }
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.white, in: DualColumnFeedLayout.cardShape)
         .shadow(radius: 3)
     }
 

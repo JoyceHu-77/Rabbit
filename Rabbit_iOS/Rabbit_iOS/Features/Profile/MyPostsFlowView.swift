@@ -1,6 +1,6 @@
 //
 //  MyPostsFlowView.swift
-//  Rabbit_iOS — 个人页 · 我的发布（单列 Feed）
+//  Rabbit_iOS — 个人页 · 我的发布（双列 feed，与物资捐换一致）
 //
 
 import SwiftUI
@@ -38,7 +38,7 @@ struct MyPostsFlowView: View {
 
     private var feedList: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            DualColumnFeedGrid {
                 ForEach(posts) { post in
                     Button {
                         selectedPost = post
@@ -52,15 +52,14 @@ struct MyPostsFlowView: View {
                                     .padding(.vertical, 5)
                                     .background(badge.background, in: Capsule())
                             }
-                            RescueCardView(post: post, layout: .feed)
+                            RescueCardView(post: post)
                         }
-                        .profileCellHitArea()
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, LayoutMetrics.horizontalInset)
-            .padding(.vertical, 12)
+            .padding()
         }
     }
 
