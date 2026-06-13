@@ -1,34 +1,106 @@
-# Rabbit_iOS 架构说明（MVVM + Coordinator 薄层）
+# Rabbit_iOS 系统架构
 
-本文档对应 Cursor Skill **ios-swift-architecture-build** 的 Phase A 契约摘要。
+`Rabbit_iOS` 按业务模块、公共能力、基础库三层重新整理。`App` 只负责应用生命周期和根装配，`Resources` 与 `Info.plist` 保持原路径，避免影响 bundle 资源加载和 Xcode build setting。
 
-## 分层目录
+## 架构图
 
-| 目录 | 职责 |
-|------|------|
-| `App/` | （预留）应用入口、全局 Coordinator 装配 |
-| `Core/MainTab.swift` | 根级 `MainTab` 枚举（单一数据源） |
-| `Core/Coordinator/` | `MainTabCoordinator`：根 Tab 选中状态，可扩展为深链接/外部跳转 |
-| `Core/Storage/` | `RabbitCommunityStore`、`AdminNotificationsStore`（UserDefaults） |
-| `Core/Networking/` | `RabbitAPIService`（Alamofire，与后端约定路径） |
-| `Shared/DesignSystem/` | `Theme`、`LayoutMetrics` |
-| `Shared/Components/` | 可复用 UI，如 `PostImageView` |
-| `Shared/Utils/` | `L10n` 等横切能力 |
-| `Features/Rescue/` | 救援：列表 View + `ViewModels/RescueListViewModel` |
-| `Features/Adoption/` | 领养多段内容 |
-| `Features/Donation/` | 物资捐换 |
-| `Features/Activity/` | 活动主 Tab + `ActivitySupplementViews`（打卡/云养/线下/橱窗） |
-| `Features/Profile/` | 个人页 + 消息/订单/意向等 Sheet |
-| 仓库根下遗留 | `RootTabView`、`SceneDelegate`、`WelcomeGuideView`、救援详情/筛选等可按后续迭代迁入 Features |
+```mermaid
+flowchart TB
+    ThirdParty["ThirdParty SDK\nAlamofire / CoreData / SwiftUI"]
+    Base["Base\nNetwork / Theme / Persistence / Storage / Helpers"]
+    Common["Common\nAppState / Navigation / Components / Onboarding"]
+    Business["Business\nAuth / Rescue / Activity / Adoption / Donation / Profile"]
+    App["App\nAppDelegate / SceneDelegate / AppRootView / RootTabView"]
 
-## 状态与依赖
+    ThirdParty --> Base
+    Base --> Common
+    Base --> Business
+    Common --> Business
+    Business --> App
+    Common --> App
+```
 
-- **全局应用设置**：`AppDataStore`（`@Observable` + Core Data），经 `.environment(appData)` 注入。
-- **救援列表**：`RescueListViewModel`（`@Observable`）承载列表、筛选、排序与加载状态，视图仅绑定与触发。
-- **Coordinator**：`MainTabCoordinator` 持有 `selectedTab`；后续可将编程切换 Tab（如通知 deep link）收敛到 `select(_:)`。
+## 目录树
 
-## 后续演进（未在本次全部落地）
+```text
+Rabbit_iOS/
+  App/
+    AppDelegate.swift
+    SceneDelegate.swift
+    AppRootView.swift
+    RootTabView.swift
+    ViewController.swift
+  Business/
+    Auth/
+      LoginView.swift
+      LocalAuthCatalog.swift
+    Rescue/
+      RescueTabView.swift
+      RescueDetailView.swift
+      CreateRescuePostView.swift
+      RescueFiltersView.swift
+      LocationPickerSheet.swift
+      ViewModels/
+      Components/
+      Models/
+      Support/
+    Activity/
+    Adoption/
+      Support/
+    Donation/
+    Profile/
+  Common/
+    AppState/
+      AppDataStore.swift
+    Navigation/
+      MainTab.swift
+      MainTabCoordinator.swift
+      TabOrderSettings.swift
+    Components/
+      PostImageView.swift
+      RabbitLoadingView.swift
+      WechatQRImageView.swift
+      ZoomableUIImageView.swift
+    Onboarding/
+      WelcomeGuideView.swift
+      WelcomeGuideOverlay.swift
+      WelcomeGuideMedia.swift
+      WelcomeGuideVideoView.swift
+  Base/
+    Network/
+      RabbitAPIService.swift
+      APIAuthHeaders.swift
+      APIQueryModels.swift
+      APIProfileModels.swift
+      APIAdoptionActivityModels.swift
+    Theme/
+      Theme.swift
+      LayoutMetrics.swift
+      DualColumnFeedLayout.swift
+    Persistence/
+      PersistenceController.swift
+      RabbitModel.xcdatamodeld
+    Storage/
+      AdminNotificationsStore.swift
+      RabbitCommunityStore.swift
+      RescueDraftStore.swift
+      UserInboxStore.swift
+    Helpers/
+      AgeCalculator.swift
+      ChineseContentValidator.swift
+      L10n.swift
+  Resources/
+    Adoption/
+    RescueFeed/
+    WelcomeGuide/
+  Assets.xcassets/
+  Base.lproj/
+  Info.plist
+```
 
-- 为 `RabbitAPIService` 增加协议抽象与注入，便于 Mock / 单测。
-- 将 `WelcomeGuideView`、`RescueDetailView` 等迁入对应 Feature 目录。
-- 使用 `Localizable.xcstrings` 替换 `L10n` 中的占位键。
+## 分层职责
+
+- `Business`：具体业务页面、业务 ViewModel、业务模型与模块内支撑能力，例如救援、活动、领养、捐换、个人页。
+- `Common`：多个业务模块共享的应用能力，例如全局 `AppDataStore`、Tab 导航、通用图片/二维码组件、新手引导。
+- `Base`：不依赖具体业务的基础能力，例如网络服务、主题布局、Core Data、UserDefaults 存储封装、通用工具函数。
+- `App`：应用入口、登录门控和根 Tab 装配，不承载具体业务逻辑。

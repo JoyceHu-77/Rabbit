@@ -74,7 +74,6 @@
 				E4BAE472941F596CB266AEE4 /* Pods-Rabbit_iOS.debug.xcconfig */,
 				D561D11AFFCA6641F9F9BB31 /* Pods-Rabbit_iOS.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -186,9 +185,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
