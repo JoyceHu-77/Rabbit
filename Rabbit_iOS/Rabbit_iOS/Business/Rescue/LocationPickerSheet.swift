@@ -19,24 +19,20 @@ struct LocationPickerSheet: View {
     )
     @State private var pin = CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737)
     @State private var isGeocoding = false
-    @State private var hint = "点击地图选择大致位置，确认后将填入「城市-区县」"
+    @State private var hint = "拖动地图，把定位针放到目标区域；确认后将填入「城市-区县」"
 
     var body: some View {
         NavigationStack {
-            MapReader { proxy in
-                Map(position: $position) {
-                    Annotation("选中位置", coordinate: pin) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.title)
-                            .foregroundStyle(.red)
-                    }
+            Map(position: $position) {
+                Annotation("选中位置", coordinate: pin) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(.red)
                 }
-                .mapStyle(.standard(elevation: .flat))
-                .gesture(DragGesture(minimumDistance: 0).onEnded { value in
-                    if let coord = proxy.convert(value.location, from: .local) {
-                        pin = coord
-                    }
-                })
+            }
+            .mapStyle(.standard(elevation: .flat))
+            .onMapCameraChange(frequency: .continuous) { context in
+                pin = context.region.center
             }
             .safeAreaInset(edge: .bottom) {
                 Text(hint)

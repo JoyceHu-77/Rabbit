@@ -401,19 +401,22 @@ final class AppDataStore {
     /// 发布捐换：已配置 API 时走 `POST /v1/donations`，否则仅追加本地缓存。
     func addDonation(_ draft: DonationDraft) async -> String? {
         if RabbitAPIConfiguration.normalizedBaseURL() == nil {
-            appendDonationLocally(draft)
+            let row = appendDonationLocally(draft)
+            notifyDonationSubmitted(row)
             return nil
         }
         do {
             let row = try await RabbitAPIService.createDonation(draft)
             donationPostsCache.append(row)
+            notifyDonationSubmitted(row)
+            await refreshProfileBadgeCounts()
             return nil
         } catch {
             return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
-    private func appendDonationLocally(_ draft: DonationDraft) {
+    private func appendDonationLocally(_ draft: DonationDraft) -> DonationDisplayPost {
         let pattern = #"D(\d+)"#
         let nums = donationPostsCache.compactMap { post -> Int? in
             guard let re = try? NSRegularExpression(pattern: pattern),
@@ -439,6 +442,36 @@ final class AppDataStore {
             date: f.string(from: Date())
         )
         donationPostsCache.append(row)
+        return row
+    }
+
+    func updateDonationPost(_ post: DonationDisplayPost) {
+        if let i = donationPostsCache.firstIndex(where: { $0.id == post.id }) {
+            donationPostsCache[i] = post
+        } else {
+            donationPostsCache.append(post)
+        }
+    }
+
+    func deleteDonationPost(id: String) {
+        donationPostsCache.removeAll { $0.id == id }
+    }
+
+    private func notifyDonationSubmitted(_ post: DonationDisplayPost) {
+        UserInboxStore.append(
+            title: "捐换帖发布成功",
+            body: "您发布的「\(post.title)」已提交，工作人员会协助流转。"
+        )
+        AdminNotificationsStore.append(
+            AdminNotificationRecord(
+                id: "ADM\(Int(Date().timeIntervalSince1970 * 1000))",
+                type: "donation",
+                title: "新物资捐换帖",
+                content: "[\(post.id)] \(post.title)：\(post.type)，目标 \(post.target)。",
+                createdAt: Date(),
+                read: false
+            )
+        )
     }
 }
 

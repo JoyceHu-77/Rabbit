@@ -3,6 +3,7 @@
 //  Rabbit_iOS — 物资捐换 Feature
 //
 
+import PhotosUI
 import SwiftUI
 
 
@@ -65,7 +66,16 @@ struct DonationTabView: View {
             }
         }
         .sheet(item: $detailPost) { p in
-            DonationDetailSheet(post: p, onToast: { toast = $0 })
+            DonationDetailSheet(post: p, onToast: { toast = $0 }) { updated in
+                store.updateDonationPost(updated)
+                posts = store.fetchDonationPosts()
+                detailPost = updated
+            } onDelete: { deleted in
+                store.deleteDonationPost(id: deleted.id)
+                posts = store.fetchDonationPosts()
+                detailPost = nil
+                toast = "已删除该捐换帖"
+            }
         }
     }
 
@@ -80,9 +90,9 @@ struct DonationTabView: View {
                         .padding(.vertical, 4)
                         .background(p.type == "捐赠" ? Color.green : Color.blue, in: Capsule())
                         .foregroundStyle(.white)
-                    if p.status == "已完成" {
+                    if p.status == "已完成" || p.status == "进行中" {
                         Text(p.status).font(.caption2.weight(.bold)).padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.gray, in: Capsule()).foregroundStyle(.white)
+                            .background(p.status == "已完成" ? Color.gray : Color.orange, in: Capsule()).foregroundStyle(.white)
                     }
                 }
                 .padding(8)
@@ -139,8 +149,11 @@ struct DonationTabView: View {
 }
 
 private struct DonationDetailSheet: View {
-    let post: DonationDisplayPost
+    @State var post: DonationDisplayPost
     var onToast: (String) -> Void
+    var onUpdate: (DonationDisplayPost) -> Void
+    var onDelete: (DonationDisplayPost) -> Void
+    @Environment(AppDataStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var revealed = false
 
@@ -161,6 +174,24 @@ private struct DonationDetailSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("联系人：\(post.contactName)").font(.headline)
                             Text("联系方式：\(post.contactPhone)").font(.title3)
+                            if isAvailableForClaim {
+                                Button(primaryActionTitle) {
+                                    markInProgress()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(post.type == "捐赠" ? .green : .blue)
+                            } else if post.status == "进行中" {
+                                Text("该物资正在对接中，暂不可重复领取/置换。")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                Button("确认已完成") {
+                                    markCompleted()
+                                }
+                                .buttonStyle(.bordered)
+                            } else {
+                                Label("已完成", systemImage: "checkmark.seal.fill")
+                                    .foregroundStyle(.green)
+                            }
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -180,6 +211,14 @@ private struct DonationDetailSheet: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
                     }
+                    if store.isAdmin {
+                        Divider()
+                        Button("管理员删除帖子", role: .destructive) {
+                            onDelete(post)
+                            dismiss()
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
                 .padding()
             }
@@ -192,6 +231,41 @@ private struct DonationDetailSheet: View {
             }
         }
     }
+
+    private var primaryActionTitle: String {
+        post.type == "捐赠" ? "我要领取" : "我要置换"
+    }
+
+    private var isAvailableForClaim: Bool {
+        post.status == "待领取" || post.status == "未完成"
+    }
+
+    private func markInProgress() {
+        post.status = "进行中"
+        onUpdate(post)
+        UserInboxStore.append(
+            title: "\(post.type)对接中",
+            body: "您已发起「\(post.title)」的\(post.type == "捐赠" ? "领取" : "置换")，请在 3 天内与对方确认。"
+        )
+        AdminNotificationsStore.append(
+            AdminNotificationRecord(
+                id: "ADM\(Int(Date().timeIntervalSince1970 * 1000))",
+                type: "donation",
+                title: "物资捐换进入对接",
+                content: "[\(post.id)] \(post.title) 已进入进行中，请关注 3 天内确认结果。",
+                createdAt: Date(),
+                read: false
+            )
+        )
+        onToast("已进入进行中，其他用户暂不可操作")
+    }
+
+    private func markCompleted() {
+        post.status = "已完成"
+        onUpdate(post)
+        UserInboxStore.append(title: "捐换已完成", body: "「\(post.title)」已确认完成，感谢您的爱心。")
+        onToast("已标记完成")
+    }
 }
 
 private struct CreateDonationSheet: View {
@@ -200,19 +274,25 @@ private struct CreateDonationSheet: View {
     var onSubmit: (DonationDraft) async -> String?
     @State private var title = ""
     @State private var description = ""
-    @State private var imageURL = ""
+    @State private var photoItem: PhotosPickerItem?
     @State private var type = "捐赠"
     @State private var target = "共享"
     @State private var contactName = ""
     @State private var contactPhone = ""
+    @State private var contactWechat = ""
     @State private var alertMessage: String?
+    @State private var isSubmitting = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Text("捐换要求全新未开封，保质期内。")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 TextField("标题", text: $title)
                 TextField("描述", text: $description, axis: .vertical)
-                TextField("图片 URL", text: $imageURL)
                 Picker("类型", selection: $type) {
                     Text("捐赠").tag("捐赠")
                     Text("置换").tag("置换")
@@ -223,14 +303,26 @@ private struct CreateDonationSheet: View {
                 }
                 TextField("联系人", text: $contactName)
                 TextField("电话", text: $contactPhone)
+                    .keyboardType(.phonePad)
+                TextField("微信", text: $contactWechat)
+                    .textInputAutocapitalization(.never)
+                Section("物资图片") {
+                    PhotosPicker(selection: $photoItem, matching: .images) {
+                        Label(photoItem == nil ? "从相册选择图片" : "已选择图片，点击重选", systemImage: "photo.on.rectangle.angled")
+                    }
+                    Text("请上传实物图片，便于审核和领取/置换方判断物资状态。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .navigationTitle("发布捐换")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("发布") {
+                    Button(isSubmitting ? "发布中..." : "发布") {
                         Task { await submit() }
                     }
+                    .disabled(isSubmitting)
                 }
             }
             .alert("提示", isPresented: Binding(
@@ -245,19 +337,69 @@ private struct CreateDonationSheet: View {
     }
 
     private func submit() async {
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = contactName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phone = contactPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wechat = contactWechat.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { alertMessage = "请输入标题"; return }
+        guard !desc.isEmpty else { alertMessage = "请输入描述"; return }
+        guard !name.isEmpty else { alertMessage = "请输入联系人"; return }
+        guard !phone.isEmpty || !wechat.isEmpty else { alertMessage = "电话和微信至少填写一个"; return }
+        guard photoItem != nil else { alertMessage = "请从相册选择物资图片"; return }
+        if let err = ChineseContentValidator.validateTitle(t) ?? ChineseContentValidator.validateDescriptionOrComment(desc) {
+            alertMessage = err
+            return
+        }
+        guard validateChineseAndNumberQuality(t + desc + name) else {
+            alertMessage = "标题、描述和联系人请使用中文、数字或常见标点"
+            return
+        }
+        if !phone.isEmpty, phone.range(of: #"^[0-9+\-\s]{5,20}$"#, options: .regularExpression) == nil {
+            alertMessage = "电话格式不正确"
+            return
+        }
+        if !wechat.isEmpty, wechat.range(of: #"^[A-Za-z0-9_\-]{3,30}$"#, options: .regularExpression) == nil {
+            alertMessage = "微信号格式不正确"
+            return
+        }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        guard let image = await savePickerImageToDisk(photoItem) else {
+            alertMessage = "图片保存失败，请重新选择"
+            return
+        }
+        let contact = [
+            phone.isEmpty ? nil : "电话：\(phone)",
+            wechat.isEmpty ? nil : "微信：\(wechat)",
+        ].compactMap { $0 }.joined(separator: "；")
         let draft = DonationDraft(
-            title: title.isEmpty ? "未命名" : title,
-            description: description,
-            imageURL: imageURL.isEmpty ? "https://images.unsplash.com/photo-1578164252938-1da0cd4caa30?w=400" : imageURL,
+            title: t,
+            description: desc,
+            imageURL: image,
             type: type,
             target: target,
-            contactName: contactName.isEmpty ? "匿名" : contactName,
-            contactPhone: contactPhone.isEmpty ? "—" : contactPhone
+            contactName: name,
+            contactPhone: contact
         )
         if let err = await onSubmit(draft) {
             alertMessage = err
             return
         }
         dismiss()
+    }
+
+    private func validateChineseAndNumberQuality(_ text: String) -> Bool {
+        text.range(of: #"^[\u4e00-\u9fa5A-Za-z0-9，。！？、：；（）()《》“”\s+\-]+$"#, options: .regularExpression) != nil
+    }
+
+    private func savePickerImageToDisk(_ item: PhotosPickerItem?) async -> String? {
+        guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return nil }
+        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("donation_uploads", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("\(UUID().uuidString).jpg")
+        guard (try? data.write(to: file)) != nil else { return nil }
+        return file.absoluteString
     }
 }

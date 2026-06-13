@@ -56,6 +56,27 @@ struct ProfileTabView: View {
     private var loggedInContent: some View {
         ScrollView {
             VStack(spacing: 18) {
+                if let count = messageBadgeCount {
+                    Button {
+                        profilePath.append(ProfileRoute.messages)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "bell.badge.fill")
+                                .foregroundStyle(.red)
+                            Text("你有 \(count) 条新消息")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("查看")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.red)
+                        }
+                        .padding()
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.red.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 VStack(alignment: .leading, spacing: 14) {
                     Button {
                         profilePath.append(ProfileRoute.profileEdit)
@@ -100,7 +121,7 @@ struct ProfileTabView: View {
                 .background(LinearGradient(colors: [Color.pink, Color.purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 18))
 
                 VStack(spacing: 0) {
-                    profileRow("bell", "我的消息", badge: messageBadgeCount) {
+                    profileRow("bell", "消息中心", badge: messageBadgeCount) {
                         profilePath.append(ProfileRoute.messages)
                     }
                     profileRow("bag", "我的订单", badge: nil) {

@@ -47,7 +47,7 @@ struct CreateRescuePostView: View {
                 Section("基本信息") {
                     TextField("标题", text: $title)
                     HStack {
-                        TextField("地点（城市-区县）", text: $location)
+                        TextField("地点（如：上海市-黄浦区）", text: $location)
                         Button {
                             showMapPicker = true
                         } label: {
@@ -65,6 +65,9 @@ struct CreateRescuePostView: View {
                     TextField("称呼", text: $finderName)
                     TextField("联系方式", text: $finderContact)
                     Toggle("公开联系方式", isOn: $isPublic)
+                    Text("如果不授权公开，只有爱兔会工作人员能看到联系人信息。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section("状态标签") {
                     Picker("健康状况", selection: $healthStatus) {

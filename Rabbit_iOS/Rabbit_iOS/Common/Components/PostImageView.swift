@@ -11,6 +11,8 @@ struct PostImageView: View {
     var rescuePostId: String? = nil
     /// 种子兔兔 ID，API 图片地址与种子不一致时的回退键。
     var sourceRabbitId: Int32? = nil
+    /// 默认用于卡片裁切；故事书等完整展示场景可传 `.fit`。
+    var contentMode: ContentMode = .fill
 
     var body: some View {
         Group {
@@ -20,14 +22,12 @@ struct PostImageView: View {
                    rescuePostId: rescuePostId,
                    sourceRabbitId: sourceRabbitId
                ) {
-                Image(uiImage: local)
-                    .resizable()
-                    .scaledToFill()
+                styledImage(Image(uiImage: local))
             } else if let u = resolvedHTTPURL(urlString) {
                 AsyncImage(url: u) { phase in
                     switch phase {
                     case .success(let img):
-                        img.resizable().scaledToFill()
+                        styledImage(img)
                     case .failure:
                         localOrPlaceholder
                     default:
@@ -39,14 +39,21 @@ struct PostImageView: View {
                 rescuePostId: rescuePostId,
                 sourceRabbitId: sourceRabbitId
             ) {
-                Image(uiImage: local)
-                    .resizable()
-                    .scaledToFill()
+                styledImage(Image(uiImage: local))
             } else {
                 placeholder
             }
         }
         .accessibilityLabel(L10n.Common.imageContent)
+    }
+
+    @ViewBuilder
+    private func styledImage(_ image: Image) -> some View {
+        if contentMode == .fit {
+            image.resizable().scaledToFit()
+        } else {
+            image.resizable().scaledToFill()
+        }
     }
 
     @ViewBuilder
@@ -56,9 +63,7 @@ struct PostImageView: View {
             rescuePostId: rescuePostId,
             sourceRabbitId: sourceRabbitId
         ) {
-            Image(uiImage: local)
-                .resizable()
-                .scaledToFill()
+            styledImage(Image(uiImage: local))
         } else {
             placeholder
         }

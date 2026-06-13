@@ -48,6 +48,7 @@ struct RescueCardView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     Spacer(minLength: 4)
                     Label(post.date, systemImage: "calendar")
                         .font(.caption2)
@@ -59,6 +60,7 @@ struct RescueCardView: View {
                     Label("主理人：\(org)", systemImage: "person")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 HStack(spacing: 6) {
@@ -69,6 +71,7 @@ struct RescueCardView: View {
                             .padding(6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                            .lineLimit(1)
                     }
                     if let s = post.sterilizedStatus, !s.isEmpty {
                         Label(s, systemImage: "checkmark.circle.fill")
@@ -77,8 +80,10 @@ struct RescueCardView: View {
                             .padding(6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                            .lineLimit(1)
                     }
                 }
+                .frame(height: 28, alignment: .leading)
 
                 Text(post.description)
                     .font(.caption2)
@@ -86,6 +91,7 @@ struct RescueCardView: View {
                     .lineLimit(2)
             }
             .padding(10)
+            .frame(height: 134, alignment: .topLeading)
         }
         .background(Color.white, in: DualColumnFeedLayout.cardShape)
         .shadow(radius: 3)

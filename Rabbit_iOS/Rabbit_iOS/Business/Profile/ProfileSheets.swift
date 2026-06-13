@@ -3,6 +3,7 @@
 //  Rabbit_iOS — 消息 / 订单 / 领养意向 / 社区发帖 Sheet
 //
 
+import PhotosUI
 import SwiftUI
 
 
@@ -115,7 +116,7 @@ struct MessagesFlowView: View {
             if useLocalFallback {
                 let local = localInboxRecords()
                 if local.isEmpty {
-                    ContentUnavailableView("暂无站内信", systemImage: "tray")
+                    ContentUnavailableView("暂无消息", systemImage: "tray")
                 } else {
                     ForEach(local) { m in
                         NavigationLink(value: MessageDetailSelection.inbox(.local(m))) {
@@ -125,7 +126,7 @@ struct MessagesFlowView: View {
                     }
                 }
             } else if inbox.isEmpty {
-                ContentUnavailableView("暂无站内信", systemImage: "tray")
+                ContentUnavailableView("暂无消息", systemImage: "tray")
             } else {
                 ForEach(inbox) { m in
                     NavigationLink(value: MessageDetailSelection.inbox(.remote(m))) {
@@ -135,7 +136,7 @@ struct MessagesFlowView: View {
                 }
             }
         } header: {
-            Text("站内信")
+            Text("消息中心")
         } footer: {
             Text("点击任意消息查看详情；未读消息打开后自动标记已读。")
         }
@@ -231,7 +232,7 @@ struct MessagesFlowView: View {
         UserInboxStore.ensureDemoSeedIfNeeded()
         guard RabbitAPIConfiguration.normalizedBaseURL() != nil else {
             useLocalFallback = true
-            adminList = []
+            adminList = store.isAdmin ? localAdminNoticeItems() : []
             return
         }
         useLocalFallback = false
@@ -244,7 +245,8 @@ struct MessagesFlowView: View {
             useLocalFallback = true
         }
         if store.isAdmin {
-            adminList = (try? await RabbitAPIService.fetchAdminNotifications()) ?? []
+            let remoteAdmin = (try? await RabbitAPIService.fetchAdminNotifications()) ?? []
+            adminList = remoteAdmin.isEmpty ? localAdminNoticeItems() : remoteAdmin
         }
         await store.refreshProfileBadgeCounts()
     }
@@ -263,6 +265,14 @@ struct MessagesFlowView: View {
 
     @MainActor
     private func markAdminRead(_ n: ProfileAdminNoticeItem) async {
+        if useLocalFallback || RabbitAPIConfiguration.normalizedBaseURL() == nil {
+            AdminNotificationsStore.markRead(id: n.id)
+            if let i = adminList.firstIndex(where: { $0.id == n.id }) {
+                adminList[i].read = true
+            }
+            await store.refreshProfileBadgeCounts()
+            return
+        }
         if let i = adminList.firstIndex(where: { $0.id == n.id }), !adminList[i].read {
             adminList[i].read = true
             try? await RabbitAPIService.markAdminNotificationRead(id: n.id)
@@ -273,9 +283,22 @@ struct MessagesFlowView: View {
         }
     }
 
+    private func localAdminNoticeItems() -> [ProfileAdminNoticeItem] {
+        AdminNotificationsStore.load().map {
+            ProfileAdminNoticeItem(
+                id: $0.id,
+                type: $0.type,
+                title: $0.title,
+                content: $0.content,
+                createdAt: $0.createdAt,
+                read: $0.read
+            )
+        }
+    }
+
     private var titleText: String {
         if !store.isAdmin || tab == .user {
-            return "我的消息"
+            return "消息中心"
         }
         return "管理通知"
     }
@@ -287,6 +310,7 @@ struct MessagesFlowView: View {
         case "cloudAdopt": return "cloud"
         case "adopt": return "heart.fill"
         case "rescue": return "hare.fill"
+        case "donation": return "gift.fill"
         default: return "bell.badge"
         }
     }
@@ -346,6 +370,7 @@ struct AdoptionIntentSheet: View {
                         note: nil
                     )
                 )
+                notifyLocalAfterSubmit()
                 onSubmitted("领养意向已提交，请等待管理员审核")
                 await store.refreshProfileBadgeCounts()
                 dismiss()
@@ -394,15 +419,32 @@ struct CreateRabbitCommunityPostSheet: View {
     @State private var content = ""
     @State private var author = ""
     @State private var imageURL = ""
+    @State private var photoItems: [PhotosPickerItem] = []
     @State private var isPublishing = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("标题", text: $title)
-                TextField("昵称", text: $author)
-                TextField("正文", text: $content, axis: .vertical)
-                TextField("图片 URL（可选）", text: $imageURL)
+                Section("发布信息（均为必填）") {
+                    TextField("标题", text: $title)
+                    TextField("昵称", text: $author)
+                    TextField("正文", text: $content, axis: .vertical)
+                        .lineLimit(3 ... 8)
+                }
+                Section("图片（最多 10 张，必填）") {
+                    PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                        Label(photoItems.isEmpty ? "从相册选择图片" : "已选 \(photoItems.count) 张，点击重选", systemImage: "photo.on.rectangle.angled")
+                    }
+                    TextField("或填写图片 URL", text: $imageURL)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                }
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
             .navigationTitle("发布动态")
             .toolbar {
@@ -410,9 +452,10 @@ struct CreateRabbitCommunityPostSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("发布") {
+                    Button(isPublishing ? "发布中..." : "发布") {
                         Task { await publishPost() }
                     }
+                    .disabled(isPublishing)
                 }
             }
         }
@@ -420,14 +463,34 @@ struct CreateRabbitCommunityPostSheet: View {
 
     @MainActor
     private func publishPost() async {
-        let draft = CommunityPostDraft(
-            authorName: author.isEmpty ? "爱心网友" : author,
-            title: title.isEmpty ? "分享" : title,
-            content: content,
-            images: imageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [imageURL]
-        )
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let a = author.trimmingCharacters(in: .whitespacesAndNewlines)
+        let c = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { errorMessage = "请输入标题"; return }
+        guard !a.isEmpty else { errorMessage = "请输入昵称"; return }
+        guard !c.isEmpty else { errorMessage = "请输入正文"; return }
+        if let err = ChineseContentValidator.validateTitle(t) ?? ChineseContentValidator.validateDescriptionOrComment(c) {
+            errorMessage = err
+            return
+        }
         isPublishing = true
+        errorMessage = nil
         defer { isPublishing = false }
+
+        var images = await savePickerImagesToDisk(photoItems, max: 10)
+        if !url.isEmpty {
+            guard url.hasPrefix("http://") || url.hasPrefix("https://") || url.hasPrefix("file:") else {
+                errorMessage = "图片 URL 格式不正确"
+                return
+            }
+            images.append(url)
+        }
+        guard !images.isEmpty else {
+            errorMessage = "请至少上传一张图片"
+            return
+        }
+        let draft = CommunityPostDraft(authorName: a, title: t, content: c, images: Array(images.prefix(10)))
 
         if RabbitAPIConfiguration.normalizedBaseURL() != nil {
             do {
@@ -443,6 +506,7 @@ struct CreateRabbitCommunityPostSheet: View {
                 dismiss()
                 return
             } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 return
             }
         }
@@ -458,8 +522,23 @@ struct CreateRabbitCommunityPostSheet: View {
             likedByUser: false
         )
         RabbitCommunityStore.append(p)
+        UserInboxStore.append(title: "动态发布成功", body: "您发布的「\(draft.title)」已展示在爱兔社区。")
         onSaved()
         dismiss()
+    }
+
+    private func savePickerImagesToDisk(_ items: [PhotosPickerItem], max: Int) async -> [String] {
+        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("rabbit_community_uploads", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var urls: [String] = []
+        for item in items.prefix(max) {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let file = dir.appendingPathComponent("\(UUID().uuidString).jpg")
+            guard (try? data.write(to: file)) != nil else { continue }
+            urls.append(file.absoluteString)
+        }
+        return urls
     }
 }
 
@@ -743,6 +822,7 @@ struct AdminNoticeDetailView: View {
         case "cloudAdopt": return "cloud"
         case "adopt": return "heart.fill"
         case "rescue": return "hare.fill"
+        case "donation": return "gift.fill"
         default: return "bell.badge"
         }
     }

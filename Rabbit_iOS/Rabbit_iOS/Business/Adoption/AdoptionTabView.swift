@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - 领养
 
@@ -17,6 +18,102 @@ private let adoptionSteps = [
     "申请退还押金",
 ]
 
+private struct StorybookRabbitImageView: View {
+    let urlString: String
+    var rescuePostId: String?
+    var sourceRabbitId: Int32?
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color(.secondarySystemBackground)
+                if let localImage = RescueFeedMedia.uiImage(
+                    for: urlString,
+                    rescuePostId: rescuePostId,
+                    sourceRabbitId: sourceRabbitId
+                ) {
+                    orientedImage(localImage, in: geo.size)
+                } else if let remoteURL = resolvedURL(urlString) {
+                    RemoteStorybookRabbitImage(url: remoteURL, size: geo.size)
+                } else {
+                    Text("🐰").font(.title)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
+        }
+    }
+
+    @ViewBuilder
+    private func orientedImage(_ image: UIImage, in size: CGSize) -> some View {
+        if image.size.width >= image.size.height {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size.width, height: size.height, alignment: .center)
+        } else {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height, alignment: .center)
+                .clipped()
+        }
+    }
+
+    private func resolvedURL(_ raw: String) -> URL? {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        if s.hasPrefix("http://") || s.hasPrefix("https://") || s.hasPrefix("file:") {
+            return URL(string: s)
+        }
+        return nil
+    }
+}
+
+private struct RemoteStorybookRabbitImage: View {
+    let url: URL
+    let size: CGSize
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                orientedImage(image)
+            } else {
+                ProgressView()
+            }
+        }
+        .task(id: url) {
+            image = await loadImage(from: url)
+        }
+    }
+
+    @ViewBuilder
+    private func orientedImage(_ image: UIImage) -> some View {
+        if image.size.width >= image.size.height {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size.width, height: size.height, alignment: .center)
+        } else {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height, alignment: .center)
+                .clipped()
+        }
+    }
+
+    private func loadImage(from url: URL) async -> UIImage? {
+        if url.isFileURL {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return UIImage(data: data)
+        }
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return UIImage(data: data)
+    }
+}
+
 /// 故事书卡片：通过 `AdoptionTabCoordinator` 切换子 Tab；图片区禁用点击，避免 ScrollView 内布局吞掉按钮。
 private struct RabbitStoryCardView: View {
     var coordinator: AdoptionTabCoordinator
@@ -29,19 +126,19 @@ private struct RabbitStoryCardView: View {
     let image: String
     var rescuePostId: String?
     var sourceRabbitId: Int32?
+    @State private var isExpanded = false
 
     var body: some View {
         let cardShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                PostImageView(
+        HStack(alignment: .top, spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                Color(.secondarySystemBackground)
+                StorybookRabbitImageView(
                     urlString: image,
                     rescuePostId: rescuePostId,
                     sourceRabbitId: sourceRabbitId
                 )
-                .frame(maxWidth: .infinity)
-                .frame(height: 200)
-                .clipped()
+                .padding(6)
                 .allowsHitTesting(false)
 
                 Text(status)
@@ -51,34 +148,36 @@ private struct RabbitStoryCardView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(10)
             }
-            .frame(height: 200)
+            .frame(width: 128, height: 178)
             .clipped()
 
             VStack(alignment: .leading, spacing: 10) {
                 Label(name, systemImage: "heart.fill")
                     .font(.title3.bold())
-                HStack {
+                VStack(alignment: .leading, spacing: 4) {
                     Label(date, systemImage: "calendar")
-                    Spacer()
                     Label(loc, systemImage: "mappin.and.ellipse")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 Label("救助人：\(rescuer)", systemImage: "person")
                     .font(.caption)
-                Text(story).font(.subheadline)
-                Button {
-                    coordinator.openAdoptionProcess()
-                } label: {
-                    Text("了解领养流程")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                let displayStory = cleanStoryText(story)
+                Text(displayStory)
+                    .font(.subheadline)
+                    .lineLimit(isExpanded ? nil : 3)
+                if displayStory.count > 48 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Label(isExpanded ? "收起" : "展开", systemImage: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.purple)
                 }
-                .buttonStyle(.plain)
-                .background(Color.purple, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(.white)
-                .contentShape(RoundedRectangle(cornerRadius: 10))
             }
             .padding()
             .zIndex(1)
@@ -86,6 +185,13 @@ private struct RabbitStoryCardView: View {
         .background(Color.white)
         .clipShape(cardShape)
         .shadow(radius: 4)
+    }
+
+    private func cleanStoryText(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(of: #"^健康状况：[^；]*；绝育状态：[^；]*；"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[（(][^）)]*(?:逻辑|状态|底层)[^）)]*[）)]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -230,7 +336,7 @@ struct AdoptionTabView: View {
         await store.refreshRescues()
         let all = store.visibleRescuePosts(isAdmin: store.isAdmin, viewerUserName: store.userName)
             .filter { $0.moderationStatus == "approved" }
-        storybookSource = all.filter { $0.status != "寄养中" }
+        storybookSource = all
         fosterRabbits = all.filter { $0.status == "寄养中" }
         let posts = await RabbitAPIService.fetchCommunityPosts()
         rabbitPosts = posts
@@ -240,7 +346,7 @@ struct AdoptionTabView: View {
     private var storybookFromRescue: some View {
         VStack(spacing: 16) {
             Text("兔兔故事书").font(.title2.bold())
-            Text("记录每一只兔兔的救援之路（数据来自救援列表，不含「寄养中」）")
+            Text("记录每一只兔兔的救援之路")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -275,7 +381,7 @@ struct AdoptionTabView: View {
     private var adoptionCommunityGrid: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("领养社区").font(.title2.bold())
-            Text("这些兔兔正在等待一个温暖的家（「寄养中」）").font(.caption).foregroundStyle(.secondary)
+            Text("这些兔兔正在等待一个温暖的家").font(.caption).foregroundStyle(.secondary)
             if fosterRabbits.isEmpty {
                 Text("当前没有寄养中的兔兔").foregroundStyle(.secondary)
             } else {
@@ -312,7 +418,7 @@ struct AdoptionTabView: View {
                 Text(rabbitShortName(p))
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text(p.description)
+                Text(cleanRabbitDescription(p.description))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -416,6 +522,13 @@ struct AdoptionTabView: View {
         Task {
             await performToggleLike(post)
         }
+    }
+
+    private func cleanRabbitDescription(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(of: #"^健康状况：[^；]*；绝育状态：[^；]*；"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[（(][^）)]*(?:逻辑|状态|底层)[^）)]*[）)]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @MainActor

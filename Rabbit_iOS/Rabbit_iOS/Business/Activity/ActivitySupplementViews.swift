@@ -5,6 +5,30 @@
 
 import SwiftUI
 
+private struct ExpandableActivityText: View {
+    let text: String
+    var lineLimit: Int = 3
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(expanded ? nil : lineLimit)
+            if text.count > 58 {
+                Button(expanded ? "收起" : "展开") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        expanded.toggle()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.pink)
+            }
+        }
+    }
+}
+
 // MARK: - 只取心滴
 
 struct CheckinActivityContent: View {
@@ -16,6 +40,7 @@ struct CheckinActivityContent: View {
 
     @State private var phase: Phase = .idle
     @State private var daysLeft = 7
+    @State private var toast: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -25,9 +50,7 @@ struct CheckinActivityContent: View {
                 Image(systemName: "rosette").font(.title).foregroundStyle(.pink)
             }
 
-            Text("点击参与活动后，7 天内可记录每日善事（如喂流浪猫、给环卫工人送水并拍照）。期满上传记录可获得爱兔奖章，用于兑换橱窗奖品。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            ExpandableActivityText(text: "点击参与活动后，7 天内可记录每日善事（如喂流浪猫、给环卫工人送水并拍照）。期满上传记录可获得爱兔奖章，用于兑换橱窗奖品。")
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("活动规则").font(.headline)
@@ -94,6 +117,7 @@ struct CheckinActivityContent: View {
                     Button("确认上传") {
                         store.badges += 1
                         phase = .idle
+                        toast = "物料已上传，已获得 1 枚爱兔奖章"
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.pink)
@@ -106,6 +130,15 @@ struct CheckinActivityContent: View {
             LinearGradient(colors: [Color.pink.opacity(0.2), Color.red.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 20)
         )
+        .overlay(alignment: .top) {
+            if let t = toast {
+                Text(t)
+                    .padding()
+                    .background(.thinMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { toast = nil } }
+            }
+        }
     }
 
     private func ruleRow(_ text: String) -> some View {
@@ -124,6 +157,7 @@ struct CloudAdoptActivityContent: View {
     @State private var showSheet = false
     @State private var selected: RescueDisplayPost?
     @State private var amount = 100
+    @State private var customAmountText = ""
     @State private var toast: String?
 
     var body: some View {
@@ -133,9 +167,7 @@ struct CloudAdoptActivityContent: View {
                 Spacer()
                 Image(systemName: "cloud.fill").font(.title).foregroundStyle(.purple)
             }
-            Text("自主选择云养小兔与每月金额；每月金额的 10% 转为云养币，可兑换礼品。参与可获赠爱兔会志愿者徽章（线下活动发放）。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            ExpandableActivityText(text: "自主选择云养小兔与每月金额；每月金额的 10% 转为云养币，可兑换礼品。参与可获赠爱兔会志愿者徽章（线下活动发放）。")
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("云养规则").font(.headline)
@@ -181,15 +213,26 @@ struct CloudAdoptActivityContent: View {
                                 Text("¥200").tag(200)
                             }
                             .pickerStyle(.segmented)
+                            TextField("自定义金额（元）", text: $customAmountText)
+                                .keyboardType(.numberPad)
                         }
                         Section {
-                            let coins = max(1, amount / 10)
+                            let coins = max(1, selectedAmount / 10)
                             Text("预计获得 \(coins) 云养币（10%）")
                                 .font(.subheadline)
                         }
+                        Section("收款码") {
+                            Label("请使用微信完成转账，付款后到「个人页-我的订单」上传付款信息，管理员确认后发放云养币。", systemImage: "qrcode")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [6]))
+                                .frame(height: 120)
+                                .overlay(Text("微信收款码占位").font(.caption).foregroundStyle(.secondary))
+                        }
                     }
                 }
-                .navigationTitle("确认云养")
+                .navigationTitle("云养详情")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
@@ -197,12 +240,13 @@ struct CloudAdoptActivityContent: View {
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("确认") {
+                        Button("提交云养") {
                             guard let r = selected else { return }
                             Task {
-                                await confirmCloudAdopt(rescue: r, amount: amount)
+                                await confirmCloudAdopt(rescue: r, amount: selectedAmount)
                             }
                         }
+                        .disabled(selectedAmount <= 0)
                     }
                 }
             }
@@ -259,6 +303,11 @@ struct CloudAdoptActivityContent: View {
         return post.title
     }
 
+    private var selectedAmount: Int {
+        let custom = Int(customAmountText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        return custom > 0 ? custom : amount
+    }
+
     @MainActor
     private func confirmCloudAdopt(rescue: RescueDisplayPost, amount: Int) async {
         if RabbitAPIConfiguration.normalizedBaseURL() != nil {
@@ -282,8 +331,21 @@ struct CloudAdoptActivityContent: View {
             }
         }
         let coins = max(1, amount / 10)
-        store.cloudCoins += coins
-        toast = "云养成功，\(coins) 云养币已到账（本地）"
+        UserInboxStore.append(
+            title: "云养订单已提交",
+            body: "您已提交云养 \(rabbitDisplayName(rescue)) ¥\(amount)，上传付款信息并由管理员确认后可获得 \(coins) 云养币。"
+        )
+        AdminNotificationsStore.append(
+            AdminNotificationRecord(
+                id: "ADM\(Int(Date().timeIntervalSince1970 * 1000))",
+                type: "cloudAdopt",
+                title: "云养付款待确认",
+                content: "\(rabbitDisplayName(rescue)) 云养订单 ¥\(amount)，请核对付款凭证后发放 \(coins) 云养币。",
+                createdAt: Date(),
+                read: false
+            )
+        )
+        toast = "已展示收款码，请在订单页上传付款信息"
         showSheet = false
     }
 }
@@ -335,7 +397,7 @@ struct OfflineEventsContent: View {
                         Text(e.title).font(.title2.bold())
                         Label(e.date, systemImage: "calendar")
                         Label(e.location, systemImage: "mappin.and.ellipse")
-                        Text(e.description).font(.body).foregroundStyle(.secondary)
+                        ExpandableActivityText(text: e.description, lineLimit: 4)
                     }
                     .padding()
                 }
@@ -398,6 +460,9 @@ struct CharityShopContent: View {
     @State private var products: [CharityShopProductItem] = []
     @State private var toast: String?
     @State private var showQRHint = false
+    @State private var wechatQRText = UserDefaults.standard.string(forKey: "charityWechatQRText") ?? "微信收款码占位"
+    @State private var alipayQRText = UserDefaults.standard.string(forKey: "charityAlipayQRText") ?? "支付宝收款码占位"
+    @State private var purchaseProduct: CharityShopProductItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -434,9 +499,59 @@ struct CharityShopContent: View {
             products = await RabbitAPIService.fetchCharityProducts()
         }
         .alert("管理员", isPresented: $showQRHint) {
-            Button("好的", role: .cancel) {}
+            TextField("微信收款码说明/链接", text: $wechatQRText)
+            TextField("支付宝收款码说明/链接", text: $alipayQRText)
+            Button("保存") {
+                UserDefaults.standard.set(wechatQRText, forKey: "charityWechatQRText")
+                UserDefaults.standard.set(alipayQRText, forKey: "charityAlipayQRText")
+                toast = "收款码已保存"
+            }
+            Button("取消", role: .cancel) {}
         } message: {
-            Text("收款二维码管理可与 Web QRCodesDialog 一致；演示版请在真实接入时配置。")
+            Text("管理员可维护微信/支付宝收款码信息，购买时展示给用户。")
+        }
+        .sheet(item: $purchaseProduct) { product in
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(product.title).font(.title2.bold())
+                    Text("价格：¥\(product.price)")
+                        .font(.headline)
+                        .foregroundStyle(.pink)
+                    GroupBox("微信收款码") {
+                        Text(wechatQRText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    GroupBox("支付宝收款码") {
+                        Text(alipayQRText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Text("付款后请到「个人页-我的订单」上传付款凭证，管理员确认后发货。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("我已知晓，创建待确认订单") {
+                        UserInboxStore.append(
+                            title: "橱窗订单待付款",
+                            body: "您已选择「\(product.title)」，付款后请上传凭证等待管理员确认发货。"
+                        )
+                        AdminNotificationsStore.appendOrderPaymentNotification(
+                            title: "橱窗订单待核对",
+                            amountDescription: "¥\(product.price)（\(product.title)）"
+                        )
+                        purchaseProduct = nil
+                        toast = "订单已创建，请上传付款凭证"
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    Spacer()
+                }
+                .padding()
+                .navigationTitle("购买确认")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("关闭") { purchaseProduct = nil }
+                    }
+                }
+            }
         }
         .overlay(alignment: .top) {
             if let t = toast {
@@ -462,7 +577,7 @@ struct CharityShopContent: View {
                     Label("\(p.cloudCoins)", systemImage: "bitcoinsign.circle").font(.caption2)
                 }
                 Button {
-                    toast = "已创建演示订单：\(p.title)"
+                    purchaseProduct = p
                 } label: {
                     Text("购买")
                         .font(.caption2.weight(.semibold))

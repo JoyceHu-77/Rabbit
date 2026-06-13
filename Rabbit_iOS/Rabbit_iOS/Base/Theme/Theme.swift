@@ -57,10 +57,10 @@ enum RescueNavBarStyler {
             appearance.backgroundImage = image
         }
         appearance.titleTextAttributes = [
-            .foregroundColor: UIColor.white,
+            .foregroundColor: UIColor.black,
             .font: UIFont.systemFont(ofSize: 17, weight: .semibold),
         ]
-        appearance.buttonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.white]
+        appearance.buttonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.black]
         return appearance
     }
 
@@ -77,7 +77,7 @@ enum RescueNavBarStyler {
         bar.standardAppearance = appearance
         bar.scrollEdgeAppearance = appearance
         bar.compactAppearance = appearance
-        bar.tintColor = .white
+        bar.tintColor = .black
     }
 
     @MainActor
@@ -150,8 +150,8 @@ extension View {
     func rescueDetailChrome() -> some View {
         toolbar(.hidden, for: .tabBar)
             .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .tint(.white)
+            .toolbarColorScheme(.light, for: .navigationBar)
+            .tint(.black)
             .background {
                 RescueDetailNavBarStyleInjector()
                     .frame(width: 0, height: 0)

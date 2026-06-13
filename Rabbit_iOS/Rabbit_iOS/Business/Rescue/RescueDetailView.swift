@@ -191,7 +191,7 @@ struct RescueDetailView: View {
     }
 
     private var heroSection: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .topLeading) {
             TabView {
                 ForEach(post.images, id: \.self) { u in
                     PostImageView(
@@ -213,14 +213,14 @@ struct RescueDetailView: View {
             )
             .allowsHitTesting(false)
 
-            HStack(alignment: .bottom) {
+            HStack(alignment: .top) {
                 Text(post.status)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(statusAccent.foreground)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(statusAccent.background, in: Capsule())
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.35)))
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.55)))
                 Spacer()
             }
             .padding(16)
