@@ -7,11 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1267BF922F8E4D29005FB1C8 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = 1267BF912F8E4D29005FB1C8 /* Alamofire */; };
+		BB2CA293DF81657E371FAD78 /* Pods_Rabbit_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 18A77C8D0E0885414FEA8C81 /* Pods_Rabbit_iOS.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1267B85D2F8E4D28005FB1C8 /* Rabbit_iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rabbit_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		18A77C8D0E0885414FEA8C81 /* Pods_Rabbit_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Rabbit_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D561D11AFFCA6641F9F9BB31 /* Pods-Rabbit_iOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Rabbit_iOS.release.xcconfig"; path = "Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS.release.xcconfig"; sourceTree = "<group>"; };
+		E4BAE472941F596CB266AEE4 /* Pods-Rabbit_iOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Rabbit_iOS.debug.xcconfig"; path = "Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -40,7 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1267BF922F8E4D29005FB1C8 /* Alamofire in Frameworks */,
+				BB2CA293DF81657E371FAD78 /* Pods_Rabbit_iOS.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,6 +55,8 @@
 			children = (
 				1267B85F2F8E4D28005FB1C8 /* Rabbit_iOS */,
 				1267B85E2F8E4D28005FB1C8 /* Products */,
+				727B2FEB6D56D776F462A0B8 /* Pods */,
+				9AF86F1C7533C0A65D2B74B1 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -63,6 +68,24 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		727B2FEB6D56D776F462A0B8 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				E4BAE472941F596CB266AEE4 /* Pods-Rabbit_iOS.debug.xcconfig */,
+				D561D11AFFCA6641F9F9BB31 /* Pods-Rabbit_iOS.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		9AF86F1C7533C0A65D2B74B1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				18A77C8D0E0885414FEA8C81 /* Pods_Rabbit_iOS.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -70,9 +93,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1267B8702F8E4D29005FB1C8 /* Build configuration list for PBXNativeTarget "Rabbit_iOS" */;
 			buildPhases = (
+				E0130EF360C1897CC176D9D8 /* [CP] Check Pods Manifest.lock */,
 				1267B8592F8E4D28005FB1C8 /* Sources */,
 				1267B85A2F8E4D28005FB1C8 /* Frameworks */,
 				1267B85B2F8E4D28005FB1C8 /* Resources */,
+				FCD59EF47FA9A94B03CF15CE /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -82,9 +107,6 @@
 				1267B85F2F8E4D28005FB1C8 /* Rabbit_iOS */,
 			);
 			name = Rabbit_iOS;
-			packageProductDependencies = (
-				1267BF912F8E4D29005FB1C8 /* Alamofire */,
-			);
 			productName = Rabbit_iOS;
 			productReference = 1267B85D2F8E4D28005FB1C8 /* Rabbit_iOS.app */;
 			productType = "com.apple.product-type.application";
@@ -113,9 +135,6 @@
 			);
 			mainGroup = 1267B8542F8E4D28005FB1C8;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				1267BF902F8E4D29005FB1C8 /* XCRemoteSwiftPackageReference "Alamofire" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1267B85E2F8E4D28005FB1C8 /* Products */;
 			projectDirPath = "";
@@ -136,6 +155,48 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		E0130EF360C1897CC176D9D8 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Rabbit_iOS-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		FCD59EF47FA9A94B03CF15CE /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Rabbit_iOS/Pods-Rabbit_iOS-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		1267B8592F8E4D28005FB1C8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -149,13 +210,14 @@
 /* Begin XCBuildConfiguration section */
 		1267B8712F8E4D29005FB1C8 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E4BAE472941F596CB266AEE4 /* Pods-Rabbit_iOS.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5QXMTSVK8F;
+				DEVELOPMENT_TEAM = PT4W8DWBAV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Rabbit_iOS/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "爱兔会需要访问相机，以便您拍摄救援与活动相关照片（可选）。";
@@ -171,7 +233,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "chenyi.Rabbit-iOS.test2";
+				PRODUCT_BUNDLE_IDENTIFIER = "chenyi.Rabbit-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -186,13 +248,14 @@
 		};
 		1267B8722F8E4D29005FB1C8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D561D11AFFCA6641F9F9BB31 /* Pods-Rabbit_iOS.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5QXMTSVK8F;
+				DEVELOPMENT_TEAM = PT4W8DWBAV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Rabbit_iOS/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "爱兔会需要访问相机，以便您拍摄救援与活动相关照片（可选）。";
@@ -208,7 +271,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "chenyi.Rabbit-iOS.test2";
+				PRODUCT_BUNDLE_IDENTIFIER = "chenyi.Rabbit-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -259,7 +322,7 @@
 				DEVELOPMENT_TEAM = TNMDY5892P;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -323,7 +386,7 @@
 				DEVELOPMENT_TEAM = TNMDY5892P;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -364,25 +427,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		1267BF902F8E4D29005FB1C8 /* XCRemoteSwiftPackageReference "Alamofire" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Alamofire/Alamofire.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.10.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		1267BF912F8E4D29005FB1C8 /* Alamofire */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1267BF902F8E4D29005FB1C8 /* XCRemoteSwiftPackageReference "Alamofire" */;
-			productName = Alamofire;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1267B8552F8E4D28005FB1C8 /* Project object */;
 }

@@ -2,3 +2,6 @@
 xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
+
+# CocoaPods
+Rabbit_iOS/Pods/
