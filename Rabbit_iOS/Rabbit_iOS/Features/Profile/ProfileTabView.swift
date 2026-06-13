@@ -31,8 +31,6 @@ struct ProfileTabView: View {
                     AddressFlowView()
                 case .chat:
                     ChatFlowView(userName: store.userName)
-                case .tabSettings:
-                    TabBarSettingsFlowView(store: store)
                 case .profileEdit:
                     ProfileEditFlowView()
                 }
@@ -116,9 +114,6 @@ struct ProfileTabView: View {
                     }
                     profileRow("mappin.and.ellipse", "收货地址", badge: nil) {
                         profilePath.append(ProfileRoute.address)
-                    }
-                    profileRow("square.grid.2x2", "底部导航顺序", badge: nil) {
-                        profilePath.append(ProfileRoute.tabSettings)
                     }
                 }
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 16))

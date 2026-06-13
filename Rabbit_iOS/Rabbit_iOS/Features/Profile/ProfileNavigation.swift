@@ -11,6 +11,5 @@ enum ProfileRoute: Hashable {
     case myPosts
     case address
     case chat
-    case tabSettings
     case profileEdit
 }

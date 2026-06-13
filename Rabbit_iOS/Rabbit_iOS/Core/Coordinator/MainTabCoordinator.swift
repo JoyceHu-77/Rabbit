@@ -7,7 +7,7 @@ import Observation
 
 @Observable @MainActor
 final class MainTabCoordinator {
-    var selectedTab: MainTab = TabOrderSettings.orderedTabs().first ?? .rescue
+    var selectedTab: MainTab = MainTab.prdOrderedTabs.first ?? .rescue
     /// 切换到救援 Tab 后自动打开「我的发布」筛选。
     var openRescueMyPostsOnNextAppear = false
 

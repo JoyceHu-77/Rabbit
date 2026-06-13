@@ -15,9 +15,6 @@ final class AppDataStore {
 
     private(set) var settings: AppSettingsEntity!
 
-    /// 改变底部 Tab 顺序后递增，用于强制 `TabView` 重建。
-    var tabBarConfigurationEpoch: UInt = 0
-
     /// 内存中的列表，由 `refreshRescues()` / `refreshDonations()` 从网络填充。
     private(set) var rescuePostsCache: [RescueDisplayPost] = []
     private(set) var donationPostsCache: [DonationDisplayPost] = []
@@ -181,10 +178,6 @@ final class AppDataStore {
         let ctx = container.viewContext
         guard ctx.hasChanges else { return }
         try? ctx.save()
-    }
-
-    func bumpTabBarConfiguration() {
-        tabBarConfigurationEpoch += 1
     }
 
     func currentProfileSnapshot() -> ProfileSnapshot {

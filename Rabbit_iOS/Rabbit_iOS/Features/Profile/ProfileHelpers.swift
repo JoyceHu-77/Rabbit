@@ -1,6 +1,6 @@
 //
 //  ProfileHelpers.swift
-//  Rabbit_iOS — 底部 Tab 配置、地址编辑、好友 chat / 二维码演示
+//  Rabbit_iOS — 地址编辑、好友 chat / 二维码演示
 //
 
 import CoreImage
@@ -9,38 +9,6 @@ import SwiftUI
 import UIKit
 
 // MARK: - Push 流程页（由 ProfileTabView NavigationStack 承载，勿再套 Sheet）
-
-struct TabBarSettingsFlowView: View {
-    var store: AppDataStore
-
-    var body: some View {
-        Form {
-            Section("个人页位置（快捷）") {
-                Button("个人页移到末尾（PRD 默认）") {
-                    TabOrderSettings.applyProfilePositionTrailing()
-                    store.bumpTabBarConfiguration()
-                }
-                Button("个人页移到中间") {
-                    TabOrderSettings.applyProfilePositionMiddle()
-                    store.bumpTabBarConfiguration()
-                }
-            }
-            Section("预设") {
-                Button("恢复 PRD 五 Tab 默认顺序") {
-                    TabOrderSettings.resetToPRDDefault()
-                    store.bumpTabBarConfiguration()
-                }
-            }
-            Section("当前顺序") {
-                Text(TabOrderSettings.orderedTabs().map(\.title).joined(separator: " → "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .navigationTitle("底部导航")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
 
 struct ProfileEditFlowView: View {
     @Environment(AppDataStore.self) private var store
