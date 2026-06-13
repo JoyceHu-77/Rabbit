@@ -23,8 +23,6 @@
 ./gradlew :app:assembleDebug
 ```
 
-当前仓库未包含 Gradle Wrapper，如果本机没有 `gradle` 命令，建议先用 Android Studio 同步工程并生成 wrapper。
-
 ## 演示账号
 
 - `1`：管理员，具备救援审核、社区删帖、线下活动新增等能力。
@@ -45,4 +43,3 @@
 
 - 地图选点、真实图片选择/上传、二维码展示、图片缩放等平台能力尚未做完整实现。
 - 网络层首版按纯数组响应解析；若后端返回 envelope，可在 `base/RabbitApiService.kt` 增加对应 DTO。
-- UI 已按 Android Material 3 交互重组，不追求 iOS 像素级一致。
